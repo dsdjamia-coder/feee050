@@ -38,6 +38,11 @@ const studentPwa = registerPortalForPwa('student', {
         const pages = Array.from(document.querySelectorAll('.page-content'));
         const defaultTabId = 'home-page';
         let hasPublishedResults = false;
+        let availableAcademicYears = [];
+        let selectedFeeAcademicYear = '';
+        let selectedResultAcademicYear = '';
+        let studentProfile = null;
+        let studentResultsCache = [];
         const getLinkForTarget = (targetId) => links.find((link) => link.dataset.target === targetId);
         const getTargetFromHash = (hashValue) => {
             if (!hashValue) return defaultTabId;
@@ -1098,11 +1103,11 @@ const studentPwa = registerPortalForPwa('student', {
         let studentPhotoSubmission = {};
         const STUDENT_DONATION_ITEM_KEY = '__student_donation__';
         const MONTH_SEQUENCE = ['january','february','march','april','may','june','july','august','september','october','november','december'];
-        let availableAcademicYears = [];
-        let selectedFeeAcademicYear = '';
-        let selectedResultAcademicYear = '';
-        let studentProfile = null;
-        let studentResultsCache = [];
+        availableAcademicYears = [];
+        selectedFeeAcademicYear = '';
+        selectedResultAcademicYear = '';
+        studentProfile = null;
+        studentResultsCache = [];
         let resultCountdownTimer = null;
         let academicYearSettings = [];
         let currentAcademicYear = '';
@@ -1288,6 +1293,7 @@ const studentPwa = registerPortalForPwa('student', {
             if (!y1 || !y2) return true;
             return y1 === y2 || isSameAcademicYear(y1, y2);
         };
+        const normalizeFeeItemName = (name = '') => String(name || '').replace(/\s*\((?:\d{4}\s*-\s*\d{2,4}|\d{4}\s*-\s*\d{4})\)\s*$/i, '').trim();
         const isFeeItemMatch = (paymentItemKey = '', targetItem = {}) => {
             const pKey = String(paymentItemKey || '').trim().toLowerCase();
             const tKey = String(targetItem?.key || '').trim().toLowerCase();
@@ -1310,6 +1316,15 @@ const studentPwa = registerPortalForPwa('student', {
                     return true;
                 }
                 if (shortMonthN && (pKey === shortMonthN || cleanPKey === shortMonthN || pKey === tName || cleanPKey.startsWith(shortMonthN))) {
+                    return true;
+                }
+            } else {
+                const cleanPName = normalizeFeeItemName(paymentItemKey).toLowerCase();
+                const cleanTName = normalizeFeeItemName(targetItem?.name || '').toLowerCase();
+                if (cleanPName && cleanTName && (cleanPName === cleanTName || cleanPKey === cleanTName || pKey === cleanTName)) {
+                    return true;
+                }
+                if (pKey === String(targetItem?.name || '').trim().toLowerCase()) {
                     return true;
                 }
             }
