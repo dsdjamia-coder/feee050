@@ -2602,71 +2602,67 @@ const studentPwa = registerPortalForPwa('student', {
 
         const renderStudentResults = (profile, results = [], targetYear = '') => {
             try {
-                const activeYear = targetYear || profile?.academicYear || '--';
-                const classLabel = resolveAcademicClass(activeYear, profile);
-                document.getElementById('results-year-label').textContent = `Academic Year: ${activeYear}`;
-                document.getElementById('results-class-label').textContent = `Class: ${classLabel}`;
-                renderAcademicYearSelect('results-year-select', activeYear);
-
                 const container = document.getElementById('results-container');
+                const yearSelect = document.getElementById('results-year-select');
+                const examSelect = document.getElementById('results-exam-select');
+
                 if (resultCountdownTimer) {
                     clearInterval(resultCountdownTimer);
                     resultCountdownTimer = null;
                 }
-                if (resultCenterSettings.blockedClasses?.includes(classLabel)) {
-                    container.innerHTML = buildEmptyState('Result visibility is temporarily blocked for your class.', 'fa-eye-slash');
-                    return;
-                }
 
-                const filteredResults = results.filter((result) => (result.academicYear || profile?.academicYear || '') === activeYear);
-                const examSelect = document.getElementById('results-exam-select');
-                // Build list of specific exams ONLY - strict prohibition on any 'All Exams' option
-                const examOptions = [...new Set(filteredResults.map((result) => getStudentResultExamKey(result)))].filter(Boolean);
-                
-                if (examSelect) {
-                    if (examOptions.length > 0) {
-                        const prev = examOptions.includes(examSelect.value) ? examSelect.value : examOptions[examOptions.length - 1];
-                        examSelect.innerHTML = examOptions.map((exam) => {
-                            const rawLabel = getStudentResultExamLabel(filteredResults.find((row) => getStudentResultExamKey(row) === exam) || { examKey: exam });
-                            const label = stringifyResultLabel(rawLabel, examLabels[exam] || exam);
-                            return `<option value="${escapeHtml(exam)}">${escapeHtml(label)}</option>`;
-                        }).join('');
-                        examSelect.value = prev;
-                    } else {
-                        examSelect.innerHTML = '<option value="">No Exams Published</option>';
-                    }
-                }
-
-                // Whichever specific exam is selected, ONLY that specific exam's result is displayed
-                const selectedExam = examSelect?.value || (examOptions[examOptions.length - 1] || '');
-                const examScopedResults = selectedExam ? filteredResults.filter((result) => getStudentResultExamKey(result) === selectedExam) : [];
-                
                 const publishTs = resultCenterSettings.publishAt ? new Date(resultCenterSettings.publishAt).getTime() : 0;
-                const shouldShowCountdown = Number.isFinite(publishTs) && publishTs > Date.now() && !filteredResults.length;
-                const formatCountdown = (remainingMs) => {
-                    const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
-                    const days = Math.floor(totalSeconds / 86400);
-                    const hours = Math.floor((totalSeconds % 86400) / 3600);
-                    const minutes = Math.floor((totalSeconds % 3600) / 60);
-                    const seconds = totalSeconds % 60;
-                    const lead = days > 0 ? `${days}d ` : '';
-                    return `${lead}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-                };
-                if (resultCenterSettings.locked === true || shouldShowCountdown) {
+                const isCountdownActive = Number.isFinite(publishTs) && publishTs > Date.now();
+                const isManualLocked = resultCenterSettings.locked === true;
+
+                if (isCountdownActive || isManualLocked) {
+                    // 1. Lock down EVERYTHING when countdown is active
+                    const scheduledYear = resultCenterSettings.publishAcademicYear || targetYear || profile?.academicYear || '--';
+                    const scheduledExamKey = resultCenterSettings.publishExamKey || '';
+                    const scheduledExamLabel = resultCenterSettings.examLabel || (scheduledExamKey ? (examLabels[scheduledExamKey] || scheduledExamKey) : 'Upcoming Exam');
+                    const classLabel = resolveAcademicClass(scheduledYear, profile);
+
+                    const yearLabelEl = document.getElementById('results-year-label');
+                    if (yearLabelEl) yearLabelEl.textContent = `Academic Year: ${scheduledYear}`;
+                    const classLabelEl = document.getElementById('results-class-label');
+                    if (classLabelEl) classLabelEl.textContent = `Class: ${classLabel}`;
+
+                    // Lock and set filters
+                    if (yearSelect) {
+                        yearSelect.innerHTML = `<option value="${escapeHtml(scheduledYear)}" selected>${escapeHtml(scheduledYear)}</option>`;
+                        yearSelect.value = scheduledYear;
+                        yearSelect.disabled = true;
+                    }
+                    if (examSelect) {
+                        examSelect.innerHTML = `<option value="${escapeHtml(scheduledExamKey)}" selected>${escapeHtml(scheduledExamLabel)}</option>`;
+                        examSelect.value = scheduledExamKey;
+                        examSelect.disabled = true;
+                    }
+
                     const publishAtLabel = formatPublishDateTime(resultCenterSettings.publishAt);
-                    const examLabel = resultCenterSettings.examLabel || 'Upcoming Exam';
                     container.innerHTML = `
                         <div class="result-countdown-card">
                             <div class="result-countdown-head">
                                 <div class="result-countdown-icon"><i class="fas fa-hourglass-half"></i></div>
-                                <span class="result-countdown-exam">${escapeHtml(examLabel)}</span>
+                                <span class="result-countdown-exam">${escapeHtml(scheduledExamLabel)}</span>
                             </div>
                             <h3 class="result-countdown-title">Results will be published soon</h3>
                             <p class="result-countdown-subtitle">Scheduled publish time: <strong>${escapeHtml(publishAtLabel)}</strong></p>
                             <div id="results-publish-countdown" class="result-countdown-time">--:--:--</div>
-                            <p class="result-countdown-note">Please check again after the countdown ends.</p>
+                            <p class="result-countdown-note">All exam results are temporarily locked. The new results will be displayed automatically once the countdown finishes.</p>
                         </div>
                     `;
+
+                    const formatCountdown = (remainingMs) => {
+                        const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+                        const days = Math.floor(totalSeconds / 86400);
+                        const hours = Math.floor((totalSeconds % 86400) / 3600);
+                        const minutes = Math.floor((totalSeconds % 3600) / 60);
+                        const seconds = totalSeconds % 60;
+                        const lead = days > 0 ? `${days}d ` : '';
+                        return `${lead}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    };
+
                     const countdownEl = document.getElementById('results-publish-countdown');
                     const tick = () => {
                         if (!countdownEl) return;
@@ -2675,12 +2671,83 @@ const studentPwa = registerPortalForPwa('student', {
                             return;
                         }
                         const remaining = publishTs - Date.now();
-                        countdownEl.textContent = remaining > 0 ? formatCountdown(remaining) : 'Publishing now...';
+                        if (remaining <= 0) {
+                            if (resultCountdownTimer) {
+                                clearInterval(resultCountdownTimer);
+                                resultCountdownTimer = null;
+                            }
+                            countdownEl.textContent = 'Publishing now...';
+                            // Expire countdown locally and unlock everything!
+                            resultCenterSettings.publishAt = null;
+                            // Set default active academic year to scheduledYear
+                            selectedResultAcademicYear = scheduledYear;
+                            setTimeout(() => {
+                                renderStudentResults(studentProfile, studentResultsCache, selectedResultAcademicYear);
+                            }, 500);
+                            return;
+                        }
+                        countdownEl.textContent = formatCountdown(remaining);
                     };
+
                     tick();
-                    if (Number.isFinite(publishTs) && publishTs > Date.now()) resultCountdownTimer = setInterval(tick, 1000);
+                    if (Number.isFinite(publishTs) && publishTs > Date.now()) {
+                        resultCountdownTimer = setInterval(tick, 1000);
+                    }
                     return;
                 }
+
+                // Normal / Unlocked state:
+                if (yearSelect) yearSelect.disabled = false;
+                if (examSelect) examSelect.disabled = false;
+
+                // Determine active academic year:
+                let activeYear = targetYear;
+                if (!activeYear) {
+                    if (resultCenterSettings.publishAcademicYear && results.some((r) => r.academicYear === resultCenterSettings.publishAcademicYear)) {
+                        activeYear = resultCenterSettings.publishAcademicYear;
+                    } else if (results.length > 0) {
+                        const yearsWithResults = [...new Set(results.map((r) => r.academicYear).filter(Boolean))];
+                        activeYear = yearsWithResults[yearsWithResults.length - 1] || profile?.academicYear || '--';
+                    } else {
+                        activeYear = profile?.academicYear || '--';
+                    }
+                }
+                const classLabel = resolveAcademicClass(activeYear, profile);
+                document.getElementById('results-year-label').textContent = `Academic Year: ${activeYear}`;
+                document.getElementById('results-class-label').textContent = `Class: ${classLabel}`;
+                renderAcademicYearSelect('results-year-select', activeYear);
+
+                if (resultCenterSettings.blockedClasses?.includes(classLabel)) {
+                    container.innerHTML = buildEmptyState('Result visibility is temporarily blocked for your class.', 'fa-eye-slash');
+                    return;
+                }
+
+                const filteredResults = results.filter((result) => (result.academicYear || profile?.academicYear || '') === activeYear);
+                const examSelectEl = document.getElementById('results-exam-select');
+                // Build list of specific exams ONLY - strict prohibition on any 'All Exams' option
+                const examOptions = [...new Set(filteredResults.map((result) => getStudentResultExamKey(result)))].filter(Boolean);
+
+                if (examSelectEl) {
+                    if (examOptions.length > 0) {
+                        let defaultExam = examOptions[examOptions.length - 1];
+                        if (resultCenterSettings.publishExamKey && examOptions.includes(resultCenterSettings.publishExamKey)) {
+                            defaultExam = resultCenterSettings.publishExamKey;
+                        }
+                        const prev = (examSelectEl.value && examOptions.includes(examSelectEl.value)) ? examSelectEl.value : defaultExam;
+                        examSelectEl.innerHTML = examOptions.map((exam) => {
+                            const rawLabel = getStudentResultExamLabel(filteredResults.find((row) => getStudentResultExamKey(row) === exam) || { examKey: exam });
+                            const label = stringifyResultLabel(rawLabel, examLabels[exam] || exam);
+                            return `<option value="${escapeHtml(exam)}" ${exam === prev ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+                        }).join('');
+                        examSelectEl.value = prev;
+                    } else {
+                        examSelectEl.innerHTML = '<option value="">No Exams Published</option>';
+                    }
+                }
+
+                // Whichever specific exam is selected, ONLY that specific exam's result is displayed
+                const selectedExam = examSelectEl?.value || (examOptions[examOptions.length - 1] || '');
+                const examScopedResults = selectedExam ? filteredResults.filter((result) => getStudentResultExamKey(result) === selectedExam) : [];
 
                 if (!examScopedResults.length) {
                     const headerLogo = document.getElementById('header-logo')?.getAttribute('src') || '';

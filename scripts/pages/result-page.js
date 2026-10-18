@@ -3561,33 +3561,40 @@ const runPublishAction = async () => {
         }
 
         let publishedCount = 0;
-        if (isNow) {
-            const draftsToPublish = examResultsCache.filter((row) => {
-                if (row.published === true) return false;
-                const matchesYear = !row.academicYear || row.academicYear === publishAcademicYear;
-                const matchesExam = resultMatchesExam(row, publishExamKey);
-                const isBlocked = blocked.includes(row.classLabel);
-                return matchesYear && matchesExam && !isBlocked;
-            });
-            publishedCount = draftsToPublish.length;
-            if (draftsToPublish.length > 0) {
-                for (let i = 0; i < draftsToPublish.length; i += 400) {
-                    const chunk = draftsToPublish.slice(i, i + 400);
-                    const batch = writeBatch(db);
-                    chunk.forEach((row) => {
-                        batch.update(doc(db, `${BASE_PATH}/examResults`, row.id), {
-                            published: true,
-                            publishedAt: Date.now(),
-                            updatedAt: Date.now()
-                        });
-                    });
-                    await batch.commit();
-                }
+        const draftsToPublish = examResultsCache.filter((row) => {
+            if (row.published === true) return false;
+            const matchesYear = !row.academicYear || row.academicYear === publishAcademicYear;
+            const matchesExam = resultMatchesExam(row, publishExamKey);
+            const isBlocked = blocked.includes(row.classLabel);
+            return matchesYear && matchesExam && !isBlocked;
+        });
+        publishedCount = draftsToPublish.length;
+        if (draftsToPublish.length > 0) {
+            for (let i = 0; i < draftsToPublish.length; i += 400) {
+                const chunk = draftsToPublish.slice(i, i + 400);
+                const batch = writeBatch(db);
+                chunk.forEach((row) => {
+                    const updatePayload = {
+                        published: true,
+                        publishedAt: isNow ? Date.now() : (new Date(publishAt).getTime() || Date.now()),
+                        publishType: isNow ? 'now' : 'scheduled',
+                        publishAt: isNow ? null : publishAt,
+                        updatedAt: Date.now()
+                    };
+                    batch.update(doc(db, `${BASE_PATH}/examResults`, row.id), updatePayload);
+                    row.published = true;
+                    row.publishedAt = updatePayload.publishedAt;
+                    row.publishType = updatePayload.publishType;
+                    row.publishAt = updatePayload.publishAt;
+                    row.updatedAt = updatePayload.updatedAt;
+                });
+                await batch.commit();
             }
         }
 
+        const effectivePublishAt = isNow ? null : publishAt;
         await setDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter'), {
-            publishAt,
+            publishAt: effectivePublishAt,
             examLabel: title,
             publishAcademicYear,
             publishExamKey,
@@ -3600,7 +3607,7 @@ const runPublishAction = async () => {
 
         resultCenterSettings.publishHistory = history;
         resultCenterSettings.blockedClasses = blocked;
-        resultCenterSettings.publishAt = publishAt;
+        resultCenterSettings.publishAt = effectivePublishAt;
         resultCenterSettings.examLabel = title;
         resultCenterSettings.publishAcademicYear = publishAcademicYear;
         resultCenterSettings.publishExamKey = publishExamKey;
@@ -3609,9 +3616,65 @@ const runPublishAction = async () => {
         renderPublishedHistoryTable();
         renderPublishedDraftTables();
         updateDashboard();
-        alert(isNow ? (publishedCount > 0 ? `Results Published Successfully! (${publishedCount} row(s) published)` : 'Results Published! (All matching rows are now live)') : 'Auto publish schedule saved successfully!');
+        alert(isNow
+            ? (publishedCount > 0 ? `Results Published Successfully! (${publishedCount} row(s) published)` : 'Results Published! (All matching rows are now live)')
+            : `Auto Publish scheduled successfully! (${publishedCount} result(s) set for automatic release at ${formatDateTimeLabel(publishAt)})`);
     });
 };
+
+// Check and finalize any reached schedules
+const checkAndFinalizeScheduledPublishes = async () => {
+    let history = Array.isArray(resultCenterSettings.publishHistory) ? [...resultCenterSettings.publishHistory] : [];
+    let updated = false;
+    const now = Date.now();
+    for (let r of history) {
+        if (r.status === 'Scheduled' && r.publishAt) {
+            const schedTs = new Date(r.publishAt).getTime();
+            if (Number.isFinite(schedTs) && schedTs <= now) {
+                const blocked = Array.isArray(r.blockedClasses) ? r.blockedClasses : [];
+                const pendingDrafts = examResultsCache.filter((row) => {
+                    if (row.published === true) return false;
+                    const matchesYear = !row.academicYear || row.academicYear === r.academicYear;
+                    const matchesExam = resultMatchesExam(row, r.examKey);
+                    const isBlocked = blocked.includes(row.classLabel);
+                    return matchesYear && matchesExam && !isBlocked;
+                });
+                if (pendingDrafts.length > 0) {
+                    for (let i = 0; i < pendingDrafts.length; i += 400) {
+                        const chunk = pendingDrafts.slice(i, i + 400);
+                        const batch = writeBatch(db);
+                        chunk.forEach((row) => {
+                            batch.update(doc(db, `${BASE_PATH}/examResults`, row.id), {
+                                published: true,
+                                publishedAt: Date.now(),
+                                updatedAt: Date.now()
+                            });
+                            row.published = true;
+                            row.publishedAt = Date.now();
+                        });
+                        await batch.commit();
+                    }
+                }
+                r.status = 'Published';
+                r.publishType = 'auto';
+                r.publishedAt = new Date().toISOString();
+                r.updatedAt = Date.now();
+                updated = true;
+            }
+        }
+    }
+    if (updated) {
+        await setDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter'), {
+            publishHistory: history,
+            updatedAt: Date.now()
+        }, { merge: true });
+        resultCenterSettings.publishHistory = history;
+        renderPublishedHistoryTable();
+        renderPublishedDraftTables();
+        updateDashboard();
+    }
+};
+setInterval(checkAndFinalizeScheduledPublishes, 15000);
 
 document.getElementById('run-publish-action-btn')?.addEventListener('click', runPublishAction);
 document.getElementById('cancel-publish-edit-btn')?.addEventListener('click', cancelEditingPublishRecord);
