@@ -1336,12 +1336,15 @@ const studentPwa = registerPortalForPwa('student', {
             if (!currentYearFeeItems.length && feeItems.length > 0) {
                 currentYearFeeItems = feeItems.filter((item) => !item.academicYear || matchesAcademicYear(item.academicYear, academicYear));
             }
-            const yearPayments = allPayments.filter((payment) => {
-                const item = currentYearFeeItems.find((feeItem) => feeItem.key === payment.itemKey || isFeeItemMatch(payment.itemKey, feeItem));
-                const paymentYear = payment.academicYear || item?.academicYear || '';
-                return paymentYear === academicYear || matchesAcademicYear(paymentYear, academicYear);
-            });
-            const getMatchedPayment = (targetItem) => yearPayments.find(p => p.itemKey === targetItem.key || isFeeItemMatch(p.itemKey, targetItem));
+            const getMatchedPayment = (targetItem) => {
+                return allPayments.find((p) => {
+                    const isKeyMatch = p.itemKey === targetItem.key || isFeeItemMatch(p.itemKey, targetItem);
+                    if (!isKeyMatch) return false;
+                    const paymentYear = p.academicYear || targetItem.academicYear || '';
+                    if (!paymentYear || !academicYear) return true;
+                    return paymentYear === academicYear || matchesAcademicYear(paymentYear, academicYear);
+                });
+            };
             const visibleItems = currentYearFeeItems.filter((item) => {
                 if(item.isVisible === false) return false;
                 if(item.key === STUDENT_DONATION_ITEM_KEY) return false;
@@ -4018,12 +4021,20 @@ const studentPwa = registerPortalForPwa('student', {
             if (!currentYearFeeItems.length && feeItems.length > 0) {
                 currentYearFeeItems = feeItems.filter((item) => !item.academicYear || matchesAcademicYear(item.academicYear, activeYear));
             }
-            const yearPayments = allPayments.filter((payment) => {
-                const item = currentYearFeeItems.find((feeItem) => feeItem.key === payment.itemKey || isFeeItemMatch(payment.itemKey, feeItem));
-                const paymentYear = payment.academicYear || item?.academicYear || '';
+            const getMatchedStudentPayment = (targetItem) => {
+                return allPayments.find((p) => {
+                    const isKeyMatch = p.itemKey === targetItem.key || isFeeItemMatch(p.itemKey, targetItem);
+                    if (!isKeyMatch) return false;
+                    const paymentYear = p.academicYear || targetItem.academicYear || '';
+                    if (!paymentYear || !activeYear) return true;
+                    return paymentYear === activeYear || matchesAcademicYear(paymentYear, activeYear);
+                });
+            };
+            const yearPayments = allPayments.filter((p) => {
+                const paymentYear = p.academicYear || '';
+                if (!paymentYear || !activeYear) return true;
                 return paymentYear === activeYear || matchesAcademicYear(paymentYear, activeYear);
             });
-            const getMatchedStudentPayment = (targetItem) => yearPayments.find(p => p.itemKey === targetItem.key || isFeeItemMatch(p.itemKey, targetItem));
             const studentDonationPayments = yearPayments.filter((payment) => payment.itemKey === STUDENT_DONATION_ITEM_KEY);
 
             const visibleItems = currentYearFeeItems.filter(i => {
@@ -4389,117 +4400,91 @@ const studentPwa = registerPortalForPwa('student', {
                     }
                 });
 
-                try {
-                    const academicYearDoc = await getDoc(doc(db, `${BASE_PATH}/settings`, 'academicYears'));
-                    const academicData = academicYearDoc.exists() ? academicYearDoc.data() : {};
-                    academicYearSettings = Array.isArray(academicData.years) ? academicData.years : academicYearSettings;
-                    currentAcademicYear = academicData.currentYear || currentAcademicYear || '';
-                } catch (yearError) {
-                    console.warn('Unable to load academic year settings for student dashboard.', yearError);
-                }
-
-                try {
-                    const grpSnap = await getDocs(collection(db, `${BASE_PATH}/studentGroups`));
-                    studentGroups = grpSnap.docs.map(d => ({id: d.id, ...d.data()}));
-                } catch (groupError) {
-                    console.warn('Unable to load student groups for student dashboard.', groupError);
-                    studentGroups = [];
-                }
-
-                const stuSnap = await getDoc(doc(db, `${BASE_PATH}/students`, studentId));
-                if (!stuSnap.exists()) { alert("Student profile not found."); logoutStudent(); return; }
-                const st = stuSnap.data();
-                const activeGroup = studentGroups.find((group) => group.memberIds?.includes(studentId));
-                if (activeGroup?.memberIds?.length) {
-                    try {
-                        const memberDocs = await Promise.all(activeGroup.memberIds.map((memberId) => getDoc(doc(db, `${BASE_PATH}/students`, memberId))));
-                        groupMemberProfileMap = memberDocs.reduce((acc, memberDoc, idx) => {
-                            if (memberDoc.exists()) acc[activeGroup.memberIds[idx]] = memberDoc.data();
-                            return acc;
-                        }, {});
-                    } catch (memberError) {
-                        console.warn('Unable to load group member profiles for student dashboard.', memberError);
-                        groupMemberProfileMap = {};
+                const dismissLoader = () => {
+                    const loader = document.getElementById('loading-screen');
+                    if (loader && loader.style.display !== 'none') {
+                        loader.style.opacity = '0';
+                        setTimeout(() => {
+                            loader.style.display = 'none';
+                            maybeShowStartupNotificationPrompt();
+                            studentPwa.showPopupIfEligible();
+                        }, 200);
                     }
-                } else {
-                    groupMemberProfileMap = {};
-                }
-
-                const [resultSchemaSnap, resultsSnap, staffSnap] = await Promise.allSettled([
-                    getDocs(collection(db, `${BASE_PATH}/resultSchemas`)),
-                    getDocs(query(collection(db, `${BASE_PATH}/examResults`), where('studentId', '==', studentId))),
-                    getDocs(collection(db, `${BASE_PATH}/staff`))
-                ]);
-                const getSettledDocs = (settled, label) => {
-                    if (settled.status === 'fulfilled') return settled.value.docs;
-                    console.warn(`Unable to load ${label} for student dashboard.`, settled.reason);
-                    return [];
                 };
-                try {
-                    const resultCenterSnap = await getDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter'));
-                    resultCenterSettings = resultCenterSnap.exists() ? { blockedClasses: [], ...resultCenterSnap.data() } : { locked: false, blockedClasses: [] };
-                } catch (resultCenterError) {
-                    console.warn('Unable to load result center settings for student dashboard.', resultCenterError);
-                    resultCenterSettings = { locked: false, blockedClasses: [] };
+                // Safety failsafe dismiss to prevent user ever getting stuck on loading screen
+                setTimeout(dismissLoader, 1500);
+
+                // Fetch essential profile and group data in parallel
+                const [stuSnap, grpSnap] = await Promise.all([
+                    getDoc(doc(db, `${BASE_PATH}/students`, studentId)),
+                    getDocs(collection(db, `${BASE_PATH}/studentGroups`)).catch(e => ({ docs: [] }))
+                ]);
+
+                if (!stuSnap.exists()) {
+                    dismissLoader();
+                    alert("Student profile not found.");
+                    logoutStudent();
+                    return;
                 }
-                onSnapshot(doc(db, `${BASE_PATH}/settings`, 'resultCenter'), (snap) => {
-                    resultCenterSettings = snap.exists() ? { blockedClasses: [], ...snap.data() } : { locked: false, blockedClasses: [] };
-                    if (studentProfile) {
-                        renderStudentResults(studentProfile, studentResultsCache, selectedResultAcademicYear);
-                        rawResultAlerts = buildResultNotificationAlerts(studentProfile, studentResultsCache);
-                        if(window.triggerNotificationUpdate) window.triggerNotificationUpdate();
-                    }
-                });
-                try {
-                    const photoSubmissionSnap = await getDoc(doc(db, `${BASE_PATH}/studentPhotoSubmissions`, studentId));
-                    studentPhotoSubmission = photoSubmissionSnap.exists() ? photoSubmissionSnap.data() : {};
-                } catch (photoError) {
-                    console.warn('Unable to load student photo submission state.', photoError);
-                    studentPhotoSubmission = {};
+
+                const st = stuSnap.data();
+                studentProfile = { id: stuSnap.id, ...st };
+                studentGroups = grpSnap.docs ? grpSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+                const activeGroup = studentGroups.find((group) => Array.isArray(group.memberIds) && group.memberIds.includes(studentId));
+
+                const targetMemberIds = [studentId];
+                if (activeGroup?.memberIds?.length) {
+                    activeGroup.memberIds.forEach(mId => {
+                        if (mId && !targetMemberIds.includes(mId)) targetMemberIds.push(mId);
+                    });
                 }
-                resultSchemas = getSettledDocs(resultSchemaSnap, 'result schemas').map((d) => ({ id: d.id, ...d.data() }));
-                allStaff = getSettledDocs(staffSnap, 'staff payment collectors').map((d) => d.data());
-                const studentResults = getSettledDocs(resultsSnap, 'student results').map((d) => ({ id: d.id, ...d.data() })).filter((item) => item.published !== false);
-                
-                renderStudentComprehensiveProfile(st, studentPhotoSubmission);
-                renderProfilePaymentDetails();
-                setupStudentPhotoActions();
-                setupStudentEditDetailsActions(studentId, st);
-                setupStudentTopIdentityEdit(studentId, st);
-                setupStudentQuickFieldEdit(studentId, st);
-                const targetMemberIds = (activeGroup?.memberIds?.length && activeGroup.memberIds.length <= 10)
-                    ? activeGroup.memberIds.filter(Boolean)
-                    : [studentId];
-                const payQuery = targetMemberIds.length > 1
-                    ? query(collection(db, `${BASE_PATH}/payments`), where('studentId', 'in', targetMemberIds))
+                const safeTargetIds = targetMemberIds.slice(0, 10);
+                const payQuery = safeTargetIds.length > 1
+                    ? query(collection(db, `${BASE_PATH}/payments`), where('studentId', 'in', safeTargetIds))
                     : query(collection(db, `${BASE_PATH}/payments`), where('studentId', '==', studentId));
+
+                const processPayments = (docs) => {
+                    const myId = String(studentId || '').trim();
+                    const grpId = activeGroup?.id ? String(activeGroup.id).trim() : '';
+                    allPayments = docs.filter(d => {
+                        const sId = String(d.studentId || '').trim();
+                        if (sId && sId === myId) return true;
+                        if (grpId && d.billingGroupId && String(d.billingGroupId).trim() === grpId) return true;
+                        return false;
+                    });
+                    siblingPayments = docs.filter(d => {
+                        const sId = String(d.studentId || '').trim();
+                        return sId && sId !== myId;
+                    });
+                    allPayments.forEach((payment) => {
+                        if (payment.academicYear && (payment.classLabel || payment.class)) {
+                            classByYear[payment.academicYear] = payment.classLabel || payment.class;
+                        }
+                    });
+                };
 
                 try {
                     const paySnap = await getDocs(payQuery);
-                    const docs = paySnap.docs.map(d=>d.data());
-                    allPayments = docs.filter(d => d.studentId === studentId);
-                    siblingPayments = docs.filter(d => d.studentId !== studentId);
+                    processPayments(paySnap.docs.map(d => ({ id: d.id, ...d.data() })));
                 } catch (paymentError) {
                     console.warn('Unable to load student payments for dashboard.', paymentError);
                     allPayments = [];
                     siblingPayments = [];
                 }
 
-                studentProfile = st;
-                studentResultsCache = studentResults;
                 classByYear[st.academicYear || '--'] = st.class || '--';
-                studentResults.forEach((result) => {
-                    if (result.academicYear && result.classLabel) classByYear[result.academicYear] = result.classLabel;
-                });
-                allPayments.forEach((payment) => {
-                    if (payment.academicYear && (payment.classLabel || payment.class)) classByYear[payment.academicYear] = payment.classLabel || payment.class;
-                });
-
-                availableAcademicYears = buildAvailableAcademicYears(st, allPayments, studentResults);
+                availableAcademicYears = buildAvailableAcademicYears(studentProfile, allPayments, studentResultsCache);
                 selectedFeeAcademicYear = (currentAcademicYear && availableAcademicYears.includes(currentAcademicYear))
                     ? currentAcademicYear
-                    : availableAcademicYears[0];
+                    : (availableAcademicYears[0] || st.academicYear || '');
                 selectedResultAcademicYear = selectedFeeAcademicYear;
+
+                renderStudentComprehensiveProfile(studentProfile, studentPhotoSubmission);
+                renderProfilePaymentDetails();
+                setupStudentPhotoActions();
+                setupStudentEditDetailsActions(studentId, studentProfile);
+                setupStudentTopIdentityEdit(studentId, studentProfile);
+                setupStudentQuickFieldEdit(studentId, studentProfile);
 
                 document.getElementById('fee-year-select')?.addEventListener('change', (event) => {
                     selectedFeeAcademicYear = event.target.value;
@@ -4514,10 +4499,43 @@ const studentPwa = registerPortalForPwa('student', {
                 });
 
                 renderStudentFeeDetails(studentProfile, selectedFeeAcademicYear);
-                renderStudentResults(studentProfile, studentResultsCache, selectedResultAcademicYear);
-                syncResultTabVisibility(studentResultsCache.length > 0);
-                rawResultAlerts = buildResultNotificationAlerts(studentProfile, studentResultsCache);
-                if(window.triggerNotificationUpdate) window.triggerNotificationUpdate();
+                dismissLoader();
+
+                // Secondary background loads (non-blocking)
+                if (activeGroup?.memberIds?.length) {
+                    Promise.all(activeGroup.memberIds.map((memberId) => getDoc(doc(db, `${BASE_PATH}/students`, memberId))))
+                        .then(memberDocs => {
+                            groupMemberProfileMap = memberDocs.reduce((acc, memberDoc, idx) => {
+                                if (memberDoc.exists()) acc[activeGroup.memberIds[idx]] = memberDoc.data();
+                                return acc;
+                            }, {});
+                        })
+                        .catch(memberError => console.warn('Unable to load group member profiles.', memberError));
+                }
+
+                getDoc(doc(db, `${BASE_PATH}/studentPhotoSubmissions`, studentId))
+                    .then(photoSubmissionSnap => {
+                        if (photoSubmissionSnap.exists()) {
+                            studentPhotoSubmission = photoSubmissionSnap.data();
+                            renderStudentComprehensiveProfile(studentProfile, studentPhotoSubmission);
+                        }
+                    })
+                    .catch(() => {});
+
+                getDocs(collection(db, `${BASE_PATH}/staff`))
+                    .then(staffSnap => {
+                        allStaff = staffSnap.docs.map(d => d.data());
+                    })
+                    .catch(() => {});
+
+                onSnapshot(doc(db, `${BASE_PATH}/settings`, 'resultCenter'), (snap) => {
+                    resultCenterSettings = snap.exists() ? { blockedClasses: [], ...snap.data() } : { locked: false, blockedClasses: [] };
+                    if (studentProfile) {
+                        renderStudentResults(studentProfile, studentResultsCache, selectedResultAcademicYear);
+                        rawResultAlerts = buildResultNotificationAlerts(studentProfile, studentResultsCache);
+                        if (window.triggerNotificationUpdate) window.triggerNotificationUpdate();
+                    }
+                });
 
                 onSnapshot(query(collection(db, `${BASE_PATH}/examResults`), where('studentId', '==', studentId)), (snap) => {
                     studentResultsCache = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((item) => item.published !== false);
@@ -4525,22 +4543,18 @@ const studentPwa = registerPortalForPwa('student', {
                     renderStudentResults(studentProfile, studentResultsCache, selectedResultAcademicYear);
                     syncResultTabVisibility(studentResultsCache.length > 0);
                     rawResultAlerts = buildResultNotificationAlerts(studentProfile, studentResultsCache);
-                    if(window.triggerNotificationUpdate) window.triggerNotificationUpdate();
+                    if (window.triggerNotificationUpdate) window.triggerNotificationUpdate();
                 });
 
                 onSnapshot(payQuery, (paySnap) => {
                     const docs = paySnap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    allPayments = docs.filter(d => d.studentId === studentId);
-                    siblingPayments = docs.filter(d => d.studentId !== studentId);
-                    allPayments.forEach((payment) => {
-                        if (payment.academicYear && (payment.classLabel || payment.class)) classByYear[payment.academicYear] = payment.classLabel || payment.class;
-                    });
+                    processPayments(docs);
                     if (studentProfile) {
                         availableAcademicYears = buildAvailableAcademicYears(studentProfile, allPayments, studentResultsCache);
                         if (!selectedFeeAcademicYear || !availableAcademicYears.includes(selectedFeeAcademicYear)) {
                             selectedFeeAcademicYear = (currentAcademicYear && availableAcademicYears.includes(currentAcademicYear))
                                 ? currentAcademicYear
-                                : availableAcademicYears[0];
+                                : (availableAcademicYears[0] || '');
                         }
                         renderStudentFeeDetails(studentProfile, selectedFeeAcademicYear);
                         rawFeeAlerts = buildFeeNotificationAlerts(studentProfile);
@@ -4578,15 +4592,6 @@ const studentPwa = registerPortalForPwa('student', {
                 }, (grpErr) => {
                     console.warn('Real-time studentGroups snapshot error:', grpErr);
                 });
-
-                // Clean White Screen logic (Fade out instantly)
-                const loader = document.getElementById('loading-screen');
-                loader.style.opacity = '0';
-                setTimeout(() => {
-                    loader.style.display = 'none';
-                    maybeShowStartupNotificationPrompt();
-                    studentPwa.showPopupIfEligible();
-                }, 300);
 
                 // Automatically re-evaluate notifications when user opens/returns to the app on a new day
                 document.addEventListener('visibilitychange', () => {
