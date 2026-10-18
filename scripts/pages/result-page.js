@@ -214,13 +214,16 @@ const resolveResultAccess = async ({ isAdminUser = false, staffDocs = [], user =
         || staffAccess?.actLikeSuperAdmin === true
     );
     if (!hasResultPermission) {
-        const staffAccessRef = doc(db, STAFF_ACCESS_COLLECTION, normalizeEmail(user?.email || staffAccess?.email || staffAccess?.userKey || ''));
-        const staffAccessSnap = await getDoc(staffAccessRef);
-        if (staffAccessSnap.exists()) {
-            const accessData = staffAccessSnap.data() || {};
-            hasResultPermission = accessData.isActive !== false && (
-                accessData.result === true || accessData.canManageResults === true || accessData.canAccessAdmin === true || accessData.actLikeSuperAdmin === true
-            );
+        const emailToLookup = normalizeEmail(user?.email || staffAccess?.email || staffAccess?.userKey || '');
+        if (emailToLookup) {
+            const staffAccessRef = doc(db, STAFF_ACCESS_COLLECTION, emailToLookup);
+            const staffAccessSnap = await getDoc(staffAccessRef);
+            if (staffAccessSnap.exists()) {
+                const accessData = staffAccessSnap.data() || {};
+                hasResultPermission = accessData.isActive !== false && (
+                    accessData.result === true || accessData.canManageResults === true || accessData.canAccessAdmin === true || accessData.actLikeSuperAdmin === true
+                );
+            }
         }
     }
     if (!hasResultPermission) return { allowed: false, label: '', staffDoc: null };
@@ -607,7 +610,9 @@ const grantResultAccess = (accessInfo) => {
     } else {
         populateDropdowns();
         updateDashboard();
-        renderPublishedDraftTables();
+        if (typeof renderPublishedDraftTables === 'function') {
+            renderPublishedDraftTables();
+        }
     }
 };
 
@@ -684,7 +689,17 @@ const activateResultTab = (tabEl, { updateHash = true } = {}) => {
 
     // Trigger panel refresh when snapshot-page is activated
     if (tabEl.dataset.target === 'snapshot-page') {
-        renderSnapshotPanelUI();
+        if (typeof renderSnapshotPanelUI === 'function') {
+            renderSnapshotPanelUI();
+        }
+    } else if (tabEl.dataset.target === 'published-page' || tabEl.dataset.target === 'draft-page') {
+        if (typeof renderPublishedDraftTables === 'function') {
+            renderPublishedDraftTables();
+        }
+    } else if (tabEl.dataset.target === 'dashboard-page') {
+        if (typeof updateDashboard === 'function') {
+            updateDashboard();
+        }
     }
 
     // Toggle full-width layout body class specifically for Marks Entry tab
@@ -804,6 +819,9 @@ const initializeDataListeners = () => {
             if (typeof renderSnapshotPanelUI === 'function') {
                 renderSnapshotPanelUI();
             }
+            if (typeof renderPublishedDraftTables === 'function') {
+                renderPublishedDraftTables();
+            }
         } catch (error) {
             reportFatalResultError(error, 'scheduleRefresh');
         }
@@ -821,7 +839,9 @@ const initializeDataListeners = () => {
         const badge = document.getElementById('academic-year-badge');
         if (badge) badge.textContent = currentAcademicYear || 'All Years';
         populateReportYears();
-        renderSnapshotPanelUI();
+        if (typeof renderSnapshotPanelUI === 'function') {
+            renderSnapshotPanelUI();
+        }
         scheduleRefresh();
     });
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), (snap) => {
@@ -845,7 +865,9 @@ const initializeDataListeners = () => {
 
     onSnapshot(collection(db, `${BASE_PATH}/resultSchemas`), (snap) => {
         resultSchemas = snap.docs.map((d) => normalizeResultSchema({ id: d.id, ...d.data() }));
-        renderExamSetup();
+        if (typeof renderExamSetup === 'function') {
+            renderExamSetup();
+        }
         scheduleRefresh();
     });
 
@@ -1546,8 +1568,12 @@ const populateDropdowns = () => {
             schemaListClassFilter.value = currentFilter;
         }
     }
-    renderExamConfigRowsForSelectedClass();
-    renderExamSetup();
+    if (typeof renderExamConfigRowsForSelectedClass === 'function') {
+        renderExamConfigRowsForSelectedClass();
+    }
+    if (typeof renderExamSetup === 'function') {
+        renderExamSetup();
+    }
     populateReportYears();
     renderExamSelectOptions(document.getElementById('entry-exam-select'), entryClassSelect?.value || '', currentAcademicYear);
     renderExamSelectOptions(document.getElementById('report-exam-select'), reportClassSelect?.value || '', document.getElementById('report-academic-year')?.value || currentAcademicYear, '-- Choose Exam --', true);

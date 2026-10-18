@@ -66,6 +66,13 @@ const studentPwa = registerPortalForPwa('student', {
             document.querySelectorAll('.student-bottom-nav-btn[data-target]').forEach((btn) => {
                 btn.classList.toggle('active', btn.dataset.target === safeTargetId);
             });
+
+            // Re-render when switching to fees page or results page so student sees latest state immediately
+            if (safeTargetId === 'fees-page' && typeof renderStudentFeeDetails === 'function' && typeof studentProfile !== 'undefined' && studentProfile) {
+                renderStudentFeeDetails(studentProfile, selectedFeeAcademicYear);
+            } else if (safeTargetId === 'results-page' && typeof renderStudentResults === 'function' && typeof studentProfile !== 'undefined' && studentProfile) {
+                renderStudentResults(studentProfile, studentResultsCache, selectedResultAcademicYear);
+            }
         };
         
         window.activateStudentTab = activateStudentTab;
@@ -1262,18 +1269,47 @@ const studentPwa = registerPortalForPwa('student', {
             }
             return months.length ? months : [5, 6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4];
         };
+        const normalizeAcademicYearDigits = (y) => String(y || '').replace(/[^0-9]/g, '');
+        const isSameAcademicYear = (y1, y2) => {
+            if (!y1 || !y2) return false;
+            if (y1 === y2) return true;
+            const n1 = normalizeAcademicYearDigits(y1);
+            const n2 = normalizeAcademicYearDigits(y2);
+            if (!n1 || !n2) return false;
+            if (n1 === n2) return true;
+            if (n1.length === 8 && n2.length === 6 && n1.substring(0, 4) === n2.substring(0, 4)) return true;
+            if (n2.length === 8 && n1.length === 6 && n1.substring(0, 4) === n2.substring(0, 4)) return true;
+            return false;
+        };
+        const matchesAcademicYear = (itemYear, targetYear, fallbackYear = '') => {
+            if (!itemYear && !targetYear) return true;
+            const y1 = itemYear || fallbackYear || '';
+            const y2 = targetYear || '';
+            if (!y1 || !y2) return true;
+            return y1 === y2 || isSameAcademicYear(y1, y2);
+        };
         const isFeeItemMatch = (paymentItemKey = '', targetItem = {}) => {
             const pKey = String(paymentItemKey || '').trim().toLowerCase();
             const tKey = String(targetItem?.key || '').trim().toLowerCase();
             if (!pKey || !tKey) return false;
             if (pKey === tKey) return true;
-            if ((targetItem?.type || 'month') === 'month') {
-                const tName = String(targetItem.name || '').trim().toLowerCase();
-                const shortMonth = tName.slice(0, 3);
-                if (shortMonth && (pKey === shortMonth || pKey === tName || pKey === `month_${shortMonth}` || pKey === `month-${shortMonth}`)) {
+
+            const cleanPKey = pKey.replace(/^month[-_]/, '');
+            const cleanTKey = tKey.replace(/^month[-_]/, '');
+            if (cleanPKey === cleanTKey) return true;
+
+            const isMonthType = (targetItem?.type || 'month') === 'month';
+            if (isMonthType) {
+                const tName = String(targetItem?.name || '').trim().toLowerCase();
+                const shortMonthT = cleanTKey.slice(0, 3);
+                const shortMonthP = cleanPKey.slice(0, 3);
+                const shortMonthN = tName.slice(0, 3);
+                const validShort = (shortMonthT.length === 3 ? shortMonthT : '') || (shortMonthN.length === 3 ? shortMonthN : '');
+
+                if (validShort && shortMonthP === validShort) {
                     return true;
                 }
-                if (shortMonth && (pKey.startsWith(shortMonth) || (tKey.length >= 3 && pKey.startsWith(tKey.slice(0, 3))))) {
+                if (shortMonthN && (pKey === shortMonthN || cleanPKey === shortMonthN || pKey === tName || cleanPKey.startsWith(shortMonthN))) {
                     return true;
                 }
             }
@@ -1296,11 +1332,14 @@ const studentPwa = registerPortalForPwa('student', {
         const getFeeYearSummary = (st = {}, academicYear = '') => {
             const classLabel = classByYear[academicYear] || st?.class || '--';
             const baseFee = getStudentBaseMonthlyFee(st);
-            const currentYearFeeItems = feeItems.filter((item) => (item.academicYear || st.academicYear || '') === academicYear);
+            let currentYearFeeItems = feeItems.filter((item) => matchesAcademicYear(item.academicYear, academicYear, st.academicYear));
+            if (!currentYearFeeItems.length && feeItems.length > 0) {
+                currentYearFeeItems = feeItems.filter((item) => !item.academicYear || matchesAcademicYear(item.academicYear, academicYear));
+            }
             const yearPayments = allPayments.filter((payment) => {
                 const item = currentYearFeeItems.find((feeItem) => feeItem.key === payment.itemKey || isFeeItemMatch(payment.itemKey, feeItem));
                 const paymentYear = payment.academicYear || item?.academicYear || '';
-                return paymentYear === academicYear;
+                return paymentYear === academicYear || matchesAcademicYear(paymentYear, academicYear);
             });
             const getMatchedPayment = (targetItem) => yearPayments.find(p => p.itemKey === targetItem.key || isFeeItemMatch(p.itemKey, targetItem));
             const visibleItems = currentYearFeeItems.filter((item) => {
@@ -3975,11 +4014,14 @@ const studentPwa = registerPortalForPwa('student', {
                 baseFee = activeGroup.fee;
             }
 
-            const currentYearFeeItems = feeItems.filter((item) => (item.academicYear || st.academicYear || '') === activeYear);
+            let currentYearFeeItems = feeItems.filter((item) => matchesAcademicYear(item.academicYear, activeYear, st.academicYear));
+            if (!currentYearFeeItems.length && feeItems.length > 0) {
+                currentYearFeeItems = feeItems.filter((item) => !item.academicYear || matchesAcademicYear(item.academicYear, activeYear));
+            }
             const yearPayments = allPayments.filter((payment) => {
                 const item = currentYearFeeItems.find((feeItem) => feeItem.key === payment.itemKey || isFeeItemMatch(payment.itemKey, feeItem));
                 const paymentYear = payment.academicYear || item?.academicYear || '';
-                return paymentYear === activeYear;
+                return paymentYear === activeYear || matchesAcademicYear(paymentYear, activeYear);
             });
             const getMatchedStudentPayment = (targetItem) => yearPayments.find(p => p.itemKey === targetItem.key || isFeeItemMatch(p.itemKey, targetItem));
             const studentDonationPayments = yearPayments.filter((payment) => payment.itemKey === STUDENT_DONATION_ITEM_KEY);
@@ -4504,6 +4546,37 @@ const studentPwa = registerPortalForPwa('student', {
                         rawFeeAlerts = buildFeeNotificationAlerts(studentProfile);
                         if (window.triggerNotificationUpdate) window.triggerNotificationUpdate();
                     }
+                }, (payError) => {
+                    console.warn('Real-time payment snapshot error:', payError);
+                });
+
+                onSnapshot(doc(db, `${BASE_PATH}/students`, studentId), (studentSnap) => {
+                    if (studentSnap.exists()) {
+                        const updatedData = studentSnap.data();
+                        studentProfile = { id: studentSnap.id, ...updatedData };
+                        classByYear[updatedData.academicYear || '--'] = updatedData.class || '--';
+                        if (typeof renderStudentComprehensiveProfile === 'function') {
+                            renderStudentComprehensiveProfile(studentProfile, studentPhotoSubmission);
+                        }
+                        if (typeof renderStudentFeeDetails === 'function') {
+                            renderStudentFeeDetails(studentProfile, selectedFeeAcademicYear);
+                        }
+                        rawFeeAlerts = buildFeeNotificationAlerts(studentProfile);
+                        if (window.triggerNotificationUpdate) window.triggerNotificationUpdate();
+                    }
+                }, (studentErr) => {
+                    console.warn('Real-time student snapshot error:', studentErr);
+                });
+
+                onSnapshot(collection(db, `${BASE_PATH}/studentGroups`), (grpSnap) => {
+                    studentGroups = grpSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    if (studentProfile && typeof renderStudentFeeDetails === 'function') {
+                        renderStudentFeeDetails(studentProfile, selectedFeeAcademicYear);
+                        rawFeeAlerts = buildFeeNotificationAlerts(studentProfile);
+                        if (window.triggerNotificationUpdate) window.triggerNotificationUpdate();
+                    }
+                }, (grpErr) => {
+                    console.warn('Real-time studentGroups snapshot error:', grpErr);
                 });
 
                 // Clean White Screen logic (Fade out instantly)

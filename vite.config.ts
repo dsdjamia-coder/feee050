@@ -3,37 +3,44 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'path';
 
-const cleanUrlsPlugin = (): Plugin => ({
-  name: 'clean-urls',
-  configureServer(server) {
-    server.middlewares.use((req, res, next) => {
-      if (req.url) {
-        const [pathname, search] = req.url.split('?');
-        const query = search ? `?${search}` : '';
-        if (pathname === '/studentmanagement') {
-          res.writeHead(302, { Location: `/student.html${query}` });
-          res.end();
-          return;
-        }
-        const knownPages = [
-          'admin',
-          'collection',
-          'official',
-          'official-dashboard',
-          'result',
-          'student',
-          'student-fee-system',
-          'worksheet'
-        ];
-        const trimmed = pathname.replace(/^\/+|\/+$/g, '');
-        if (knownPages.includes(trimmed)) {
-          req.url = `/${trimmed}.html${query}`;
-        }
+const cleanUrlsPlugin = (): Plugin => {
+  const handler = (req: any, res: any, next: () => void) => {
+    if (req.url) {
+      const [pathname, search] = req.url.split('?');
+      const query = search ? `?${search}` : '';
+      if (pathname === '/studentmanagement') {
+        res.writeHead(302, { Location: `/student.html${query}` });
+        res.end();
+        return;
       }
-      next();
-    });
-  }
-});
+      const knownPages = [
+        'admin',
+        'collection',
+        'official',
+        'official-dashboard',
+        'result',
+        'student',
+        'student-fee-system',
+        'worksheet'
+      ];
+      const trimmed = pathname.replace(/^\/+|\/+$/g, '');
+      if (knownPages.includes(trimmed)) {
+        req.url = `/${trimmed}.html${query}`;
+      }
+    }
+    next();
+  };
+
+  return {
+    name: 'clean-urls',
+    configureServer(server) {
+      server.middlewares.use(handler);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(handler);
+    }
+  };
+};
 
 // https://vite.dev/config/
 export default defineConfig({
