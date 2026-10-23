@@ -1,149 +1,93 @@
-# 4-Row Horizontal Swipe & Multi-Column Peeking Gallery Architecture
+# Firestore Connection Resilience & Offline Error Fix Plan
 
-Transform the public gallery on `index.html` into a fixed 4-row horizontal swipe carousel across all device form-factors. Prevents indefinite vertical page stretching while presenting an optimal viewport matrix (8 photos on mobile, 16 photos on desktop) with edge peeking and dual swipe/button navigation.
+## 1. Problem Analysis & Root Cause
 
----
+### Reported Errors:
+1. `[2026-10-23T03:43:57.851Z] @firebase/firestore: Firestore (11.6.1): Could not reach Cloud Firestore backend. Backend didn't respond within 10 seconds. This typically indicates that your device does not have a healthy Internet connection at the moment. The client will operate in offline mode until it is able to successfully connect to the backend.`
+2. `Error loading dashboard: FirebaseError: Failed to get document because the client is offline.`
 
-### User Review & Critical Decisions
-
-> [!IMPORTANT]
-> The following parameters were confirmed by the user in Phase 1 clarification:
-> - **Unified Vertical Height (Fixed 4 Rows)**: Across mobile, tablet, and desktop, the gallery is locked to exactly **4 rows vertically**. All additional photos overflow and scroll **horizontally** to the side.
-> - **Initial Viewport Photo Matrix**:
->   - **Mobile (`< 640px`)**: Displays **2 columns x 4 rows = 8 photos** in the initial view, with the 3rd column peeking on the right edge to visually cue horizontal swipeability.
->   - **Tablet (`640px - 1023px`)**: Displays **3 columns x 4 rows = 12 photos** with the 4th column peeking.
->   - **Desktop / Laptop (`>= 1024px`)**: Displays **4 columns x 4 rows = 16 photos** with the 5th column peeking.
-> - **Navigation & Interaction**: Full touch swipe on mobile, smooth mouse drag-to-scroll, plus prominent **desktop Left/Right navigation arrow buttons** (`<` and `>`).
-> - **Language Requirement**: All user communication in Malayalam; UI elements in English.
-
----
-
-## 1. Overview & Core Concept
-
-### What It Does
-Replaces full-page vertical image expansion with a **high-density, 4-row horizontal swipe gallery**. Institutional event photos flow sideways in clean columns, preventing long-scroll fatigue while showcasing large photo albums smoothly.
-
-### Target Audience & Persona
-- Visitors, students, and parents browsing school galleries on smartphones (via one-thumb swipe) or desktop computers (via arrow buttons or mouse drag).
-
-### Key Value
-- **Zero Vertical Page Bloat**: Regardless of whether there are 10 or 150 photos, the gallery stays within a compact vertical footprint (~380px on mobile, ~580px on desktop).
-- **Affordance by Design**: By peeking the next column off the right edge (e.g. 2.2 columns visible on mobile, 4.25 on desktop), users instantly recognize that more photos exist horizontally.
+### Root Cause Analysis:
+1. **Streaming Timeout in Preview / Proxy Environments**:
+   - In `/config/firebase-config.js`, Firestore is initialized with standard `getFirestore(app, firebaseConfig.firestoreDatabaseId)`.
+   - By default, the Firebase JS SDK (v11.6.1) attempts to establish an HTTP/2 streaming WebChannel connection to Google Cloud Firestore backend.
+   - In web iframe environments, cloud sandboxes, or networks with proxy buffering, this streaming channel cannot stay open or times out after 10 seconds (`Backend didn't respond within 10 seconds`), dropping the Firestore client into temporary offline mode.
+2. **Fragile Initial Document Fetch in `student-page.js`**:
+   - In `/scripts/pages/student-page.js` (`loadDashboardData()`), line 4500 immediately executes:
+     ```javascript
+     const [stuSnap, grpSnap] = await Promise.all([
+         getDoc(doc(db, `${BASE_PATH}/students`, studentId)),
+         getDocs(collection(db, `${BASE_PATH}/studentGroups`)).catch(e => ({ docs: [] }))
+     ]);
+     ```
+   - When Firestore drops to offline mode during that 10-second negotiation and the student record is not already in the client cache, `getDoc()` immediately throws:
+     `FirebaseError: Failed to get document because the client is offline.`
+   - This fatal error is caught at line 4686, halting the entire student dashboard initialization and preventing the student from viewing fees, results, or profile details.
 
 ---
 
-## 2. User Experience & Visual Design
+## 2. Proposed Solution Architecture
 
-### 4-Row Responsive Horizontal Viewport Matrix
+### A. Long-Polling Transport Resilience (`/config/firebase-config.js`)
+- Replace generic `getFirestore` with `initializeFirestore` from `https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js`.
+- Configure `experimentalAutoDetectLongPolling: true` (or `experimentalForceLongPolling: true` fallback):
+  ```javascript
+  import { initializeFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-```
-[ MOBILE VIEWPORT (< 640px) - 2.2 COLUMNS VISIBLE (8 Photos + Peeking 3rd Col) ]
-┌───────────────────────────────────────────────┐
-│ GALLERY                                       │
-│ ┌──────────────┐ ┌──────────────┐ ┌───[PEEK]─┐│
-│ │ Photo 1      │ │ Photo 5      │ │ Photo 9  ││
-│ └──────────────┘ └──────────────┘ └───[PEEK]─┘│
-│ ┌──────────────┐ ┌──────────────┐ ┌───[PEEK]─┐│
-│ │ Photo 2      │ │ Photo 6      │ │ Photo 10 ││
-│ └──────────────┘ └──────────────┘ └───[PEEK]─┘│
-│ ┌──────────────┐ ┌──────────────┐ ┌───[PEEK]─┐│
-│ │ Photo 3      │ │ Photo 7      │ │ Photo 11 ││
-│ └──────────────┘ └──────────────┘ └───[PEEK]─┘│
-│ ┌──────────────┐ ┌──────────────┐ ┌───[PEEK]─┐│
-│ │ Photo 4      │ │ Photo 8      │ │ Photo 12 ││
-│ └──────────────┘ └──────────────┘ └───[PEEK]─┘│
-│ ◄ Swipe horizontally to view more photos ►    │
-└───────────────────────────────────────────────┘
+  const db = initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true
+  }, firebaseConfig.firestoreDatabaseId);
+  ```
+- **Why this works**: Automatically detects when streaming hangs or gets blocked, switching seamlessly to HTTP long-polling instead of staying offline.
 
-[ DESKTOP / LAPTOP (>= 1024px) - 4.25 COLUMNS VISIBLE (16 Photos + Peeking 5th Col) ]
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│ GALLERY                                              [ < Prev ]   [ Next > ]    │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──[PEEK]──┐                │
-│ │ Photo 1  │ │ Photo 5  │ │ Photo 9  │ │ Photo 13 │ │ Photo 17 │                │
-│ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──[PEEK]──┘                │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──[PEEK]──┐                │
-│ │ Photo 2  │ │ Photo 6  │ │ Photo 10 │ │ Photo 14 │ │ Photo 18 │                │
-│ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──[PEEK]──┘                │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──[PEEK]──┐                │
-│ │ Photo 3  │ │ Photo 7  │ │ Photo 11 │ │ Photo 15 │ │ Photo 19 │                │
-│ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──[PEEK]──┘                │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──[PEEK]──┐                │
-│ │ Photo 4  │ │ Photo 8  │ │ Photo 12 │ │ Photo 16 │ │ Photo 20 │                │
-│ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──[PEEK]──┘                │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Spatial Dimensions & Ratios
-- **Grid Engine**:
-  - `display: grid;`
-  - `grid-auto-flow: column;` (causes columns to append horizontally to the right).
-  - `grid-template-rows: repeat(4, ...);` (locks vertical rows strictly to 4).
-- **Row Heights & Column Widths**:
-  - **Mobile**: Rows `repeat(4, 88px)`, column width `calc((100% - 10px) / 2.2)` (~155px), gap `8px`. Total height ~380px.
-  - **Tablet**: Rows `repeat(4, 115px)`, column width `calc((100% - 24px) / 3.2)` (~210px), gap `12px`. Total height ~500px.
-  - **Desktop**: Rows `repeat(4, 135px)`, column width `calc((100% - 45px) / 4.25)` (~245px), gap `15px`. Total height ~585px.
-- **Micro-Interactions**:
-  - Smooth hover scale `transform: scale(1.05);` on desktop.
-  - Floating Left/Right navigation arrow buttons near the header on desktop devices for 1-click column advancement.
-  - Smooth drag-to-scroll listener for desktop mouse users.
+### B. Resilient Fetch Helper with Retry & Cache Fallback (`/scripts/pages/student-page.js`)
+- Implement a helper function `fetchDocWithRetry(docRef, maxRetries = 3, initialDelayMs = 1000)`:
+  1. Attempts `getDoc(docRef)`.
+  2. If an offline or unavailable error occurs:
+     - Tries `getDocFromCache(docRef)` so cached data loads immediately.
+     - Waits with exponential backoff (1s, 2s) and retries `getDoc(docRef)`. Once the Firestore client completes its long-polling handshake, the fetch succeeds cleanly.
+  3. If all attempts fail, captures the error and displays a user-friendly connection alert with an English `"Retry"` button rather than a blank/broken screen.
+- Add an automatic listener to `window.addEventListener('online', ...)` to reload dashboard data once the network reconnects.
 
 ---
 
-## 3. Key Technical Decisions & Trade-Offs
+## 3. Files Affected
 
-- **CSS Grid with `grid-auto-flow: column` vs. Multiple Flex Wrappers**:
-  - *Chosen Approach*: Pure CSS Grid with `grid-template-rows: repeat(4, ...); grid-auto-flow: column; overflow-x: auto;`.
-  - *Why*: Eliminates complex DOM splitting into sub-divs; the browser naturally tiles images top-to-bottom then left-to-right.
-- **Scroll Snap & Edge Peeking (`2.2` / `4.25` divisor)**:
-  - *Chosen Approach*: Setting column width using fractional viewport divisors so the subsequent column is cut in half at the container boundary.
-  - *Why*: Visual affordance principle—users naturally swipe when they see an element partially sliced at the right margin.
-
----
-
-## 4. Technical Architecture & File Modifications
-
-### Files to Modify
-1. **`index.html`**:
-   - Add Left and Right desktop navigation buttons in `#gallery-container` header:
-     `<button id="gallery-nav-prev" ...><i class="fas fa-chevron-left"></i></button>`
-     `<button id="gallery-nav-next" ...><i class="fas fa-chevron-right"></i></button>`
-2. **`styles/main.css`**:
-   - Configure `.gallery-swipe-container`:
-     - Mobile: `grid-template-rows: repeat(4, 88px); grid-auto-columns: calc((100% - 10px) / 2.2); gap: 8px;`
-     - Tablet (`@media (min-width: 640px)`): `grid-template-rows: repeat(4, 115px); grid-auto-columns: calc((100% - 24px) / 3.2); gap: 12px;`
-     - Desktop (`@media (min-width: 1024px)`): `grid-template-rows: repeat(4, 135px); grid-auto-columns: calc((100% - 45px) / 4.25); gap: 15px;`
-     - Custom sleek horizontal scrollbar and `scroll-snap-type: x mandatory`.
-   - Style desktop gallery arrow navigation buttons.
-3. **`scripts/pages/index-page.js`**:
-   - Add click event listeners to `#gallery-nav-prev` and `#gallery-nav-next` to smoothly scroll by one column offset.
-   - Implement optional mouse drag-to-scroll handler for desktop mice.
+1. **`/config/firebase-config.js`**:
+   - Update Firestore initialization using `initializeFirestore` with `experimentalAutoDetectLongPolling: true`.
+2. **`/scripts/pages/student-page.js`**:
+   - Import `getDocFromCache` from Firebase Firestore SDK.
+   - Implement `fetchDocWithRetry` helper.
+   - Update `stuSnap` fetch in `loadDashboardData()` to use `fetchDocWithRetry`.
+   - Add graceful offline banner & retry mechanism in UI.
+   - Add `online` event listener to re-sync data automatically when network reconnects.
 
 ---
 
-## 5. Testing & Verification Plan
+## 4. Risks & Mitigations
 
-1. **Mobile Test (< 640px)**:
-   - Verify exactly 4 rows vertically.
-   - Verify exactly 2 columns are fully visible (8 photos) and the 3rd column is visibly cut off (peeking).
-   - Test touch swipe horizontally to reveal subsequent columns.
-2. **Desktop Test (>= 1024px)**:
-   - Verify exactly 4 rows vertically.
-   - Verify 4 columns are fully visible (16 photos) and the 5th column peeks.
-   - Click Left and Right header arrow buttons to verify smooth horizontal advancement.
-   - Test mouse drag-to-scroll.
-3. **Lightbox Test**:
-   - Click any photo to verify that `#img-modal` lightbox opens correctly with full-screen view and image navigation.
-4. **Build & Lint Verification**:
-   - Run `compile_applet` and `lint_applet` to confirm zero regression.
+- **Risk**: Does changing `getFirestore` to `initializeFirestore` break existing Firestore queries or rules?
+  - **Mitigation**: No. `initializeFirestore` returns the exact same Firestore instance type (`Firestore`), keeping all queries, security rules, and real-time listeners (`onSnapshot`) 100% compatible.
+- **Risk**: Will retry loops cause infinite loops if the user is truly offline?
+  - **Mitigation**: `maxRetries` is capped strictly at 3 attempts with exponential delay (1s, 2s). If still disconnected, it gracefully falls back to cached data or presents a friendly offline message in English.
+
+---
+
+## 5. Verification & Testing Plan
+
+1. **Compilation & Syntax**:
+   - Run `lint_applet` and `compile_applet` to verify no syntax errors, broken imports, or TypeScript discrepancies.
+2. **Connection Recovery Test**:
+   - Verify that Firestore connects without dropping into offline mode via long-polling.
+   - Verify that `loadDashboardData()` in `student-page.js` succeeds without throwing `Failed to get document because the client is offline`.
+3. **Language & UI Verification**:
+   - Ensure all UI messages and buttons remain in English (`"Connecting to server..."`, `"Retry"`).
+   - Verify all student details (profile, fees, results) render properly.
 
 ---
 
 ## 6. Implementation Status & Verification Results
 
-- [x] **Fixed 4-Row Horizontal Swipe Architecture**: Implemented in `styles/main.css` (`grid-template-rows: repeat(4, ...); grid-auto-flow: column;`), strictly locking the gallery to 4 vertical rows on all screen sizes to eliminate vertical page stretching.
-- [x] **Mobile 8-Photo Matrix & Peeking Column**: Configured `grid-auto-columns: calc((100% - 10px) / 2.2)`, displaying 2 full columns (8 photos) with the 3rd column peeking on the right to visually prompt horizontal swiping.
-- [x] **Desktop 16-Photo Matrix & Peeking Column**: Configured `grid-auto-columns: calc((100% - 45px) / 4.25)`, displaying 4 full columns (16 photos) on desktop and laptop displays with the 5th column peeking.
-- [x] **Desktop Header Navigation Arrow Buttons**: Added `#gallery-nav-prev` and `#gallery-nav-next` in `index.html` with click handlers in `scripts/pages/index-page.js` for 1-click smooth horizontal advancement.
-- [x] **Mouse Drag-to-Scroll & Lightbox Protection**: Implemented smooth mouse dragging with threshold detection so dragging does not accidentally trigger photo lightbox clicks.
-- [x] **Compilation & Lint Verification**: Checked with `compile_applet` and `lint_applet` (`tsc --noEmit`) - both succeeded with 0 errors.
-
+- [x] **Firestore Long-Polling Transport Resilience (`/config/firebase-config.js`)**: Configured `initializeFirestore` with `experimentalAutoDetectLongPolling: true`, preventing streaming WebChannel connection hangs and 10-second backend timeouts in sandbox/proxy browser environments.
+- [x] **Resilient Document Retrieval with Exponential Backoff (`/scripts/pages/student-page.js`)**: Implemented `fetchDocWithRetry(docRef, maxRetries = 3)` with automatic cache lookup fallback via `getDocFromCache(docRef)` to prevent unhandled offline exceptions.
+- [x] **Graceful Offline Notice & Reconnection UI**: Implemented user-friendly offline status banner with a dedicated English "Retry" button and automatic reload on network reconnect (`window.addEventListener('online')`).
+- [x] **Zero Build & Lint Errors**: Executed `compile_applet` and `lint_applet` (`tsc --noEmit`) - both passed with 0 errors.

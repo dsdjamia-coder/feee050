@@ -1,8 +1,37 @@
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { doc, getDoc, collection, query, where, getDocs, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { doc, getDoc, getDocFromCache, collection, query, where, getDocs, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, formatCurrency, formatDateDisplay, hardenExternalLinks, registerServiceWorker, renderVersionInfo, sanitizeUrl } from '../shared/app-common.js';
 import { registerPortalForPwa } from '../shared/pwa-install.js';
+
+async function fetchDocWithRetry(docRef, maxRetries = 3, initialDelayMs = 1200) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await getDoc(docRef);
+        } catch (err) {
+            lastError = err;
+            const isOffline = err?.code === 'unavailable' || String(err?.message || '').toLowerCase().includes('offline');
+            if (isOffline) {
+                try {
+                    const cachedSnap = await getDocFromCache(docRef);
+                    if (cachedSnap && cachedSnap.exists()) {
+                        console.info('Resolved document from offline cache:', docRef.path);
+                        return cachedSnap;
+                    }
+                } catch (_) {}
+                if (attempt < maxRetries) {
+                    const delay = initialDelayMs * attempt;
+                    console.warn(`Firestore client offline/unavailable (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`);
+                    await new Promise(r => setTimeout(r, delay));
+                    continue;
+                }
+            }
+            throw err;
+        }
+    }
+    throw lastError;
+}
 
 window.AppSession?.guardStudentPage?.();
 
@@ -4496,9 +4525,9 @@ const studentPwa = registerPortalForPwa('student', {
                 // Safety failsafe dismiss to prevent user ever getting stuck on loading screen
                 setTimeout(dismissLoader, 1500);
 
-                // Fetch essential profile and group data in parallel
+                // Fetch essential profile and group data in parallel with resilient retry
                 const [stuSnap, grpSnap] = await Promise.all([
-                    getDoc(doc(db, `${BASE_PATH}/students`, studentId)),
+                    fetchDocWithRetry(doc(db, `${BASE_PATH}/students`, studentId)),
                     getDocs(collection(db, `${BASE_PATH}/studentGroups`)).catch(e => ({ docs: [] }))
                 ]);
 
@@ -4687,13 +4716,46 @@ const studentPwa = registerPortalForPwa('student', {
                 console.error("Error loading dashboard:", error);
                 const loader = document.getElementById('loading-screen');
                 if (loader) loader.style.display = 'none';
+
+                const isOffline = error?.code === 'unavailable' || String(error?.message || '').toLowerCase().includes('offline');
                 const resultsContainer = document.getElementById('results-container');
                 if (resultsContainer && !resultsContainer.innerHTML.trim()) {
-                    resultsContainer.innerHTML = buildEmptyState('Some dashboard data could not be loaded. Please refresh or contact office if this continues.', 'fa-exclamation-triangle');
+                    resultsContainer.innerHTML = buildEmptyState(
+                        isOffline
+                            ? 'Unable to connect to database. Please check your network connection and click Retry below.'
+                            : 'Some dashboard data could not be loaded. Please refresh or contact office if this continues.',
+                        isOffline ? 'fa-wifi' : 'fa-exclamation-triangle'
+                    );
+                }
+
+                if (isOffline && !document.getElementById('offline-reconnect-banner')) {
+                    const banner = document.createElement('div');
+                    banner.id = 'offline-reconnect-banner';
+                    banner.className = 'bg-amber-500/10 border border-amber-500/30 text-amber-300 px-4 py-2.5 rounded-xl mb-4 text-xs flex items-center justify-between gap-3 shadow-sm';
+                    banner.innerHTML = `
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-satellite-dish animate-pulse text-amber-400"></i>
+                            <span>Offline / Connecting to database...</span>
+                        </div>
+                        <button id="manual-retry-dashboard-btn" class="px-3 py-1 bg-amber-500 text-slate-900 font-semibold rounded-lg hover:bg-amber-400 text-xs transition">
+                            Retry
+                        </button>
+                    `;
+                    const mainContainer = document.querySelector('main') || document.querySelector('.container') || document.body;
+                    mainContainer.insertBefore(banner, mainContainer.firstChild);
+                    document.getElementById('manual-retry-dashboard-btn')?.addEventListener('click', () => {
+                        banner.remove();
+                        loadDashboardData();
+                    });
                 }
             }
         }
 
         onAuthStateChanged(auth, user => { if(user) { loadDashboardData(); } });
+        window.addEventListener('online', () => {
+            console.info('Network restored, refreshing student dashboard...');
+            document.getElementById('offline-reconnect-banner')?.remove();
+            loadDashboardData();
+        });
         window.AppSession?.touchSession();
         signInAnonymously(auth);
