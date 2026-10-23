@@ -2824,24 +2824,45 @@ function normalizeToIsoDate(val) {
 
 function setExcelEditMode(enabled) {
     isExcelEditMode = enabled;
-    const btn = document.getElementById('excel-edit-mode-toggle-btn');
+    const switchEl = document.getElementById('excel-edit-mode-switch');
+    if (switchEl && switchEl.checked !== isExcelEditMode) {
+        switchEl.checked = isExcelEditMode;
+    }
     const statusLabel = document.getElementById('excel-edit-mode-status');
     const banner = document.getElementById('excel-edit-mode-banner');
 
-    if (btn && statusLabel) {
+    if (statusLabel) {
         if (isExcelEditMode) {
-            btn.className = "px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-sm border border-emerald-700";
             statusLabel.textContent = "ON";
-            statusLabel.className = "text-white underline underline-offset-2";
+            statusLabel.className = "text-[11px] font-extrabold uppercase tracking-wider text-emerald-600 font-mono";
             if (banner) banner.classList.remove('hidden');
         } else {
-            btn.className = "px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-sm border border-slate-300";
             statusLabel.textContent = "OFF";
-            statusLabel.className = "text-slate-600";
+            statusLabel.className = "text-[11px] font-extrabold uppercase tracking-wider text-slate-500 font-mono";
             if (banner) banner.classList.add('hidden');
         }
     }
 
+    // Lock/Unlock all column header mapping dropdowns
+    const allDropdowns = document.querySelectorAll('.excel-col-map-dropdown');
+    allDropdowns.forEach(select => {
+        select.disabled = !isExcelEditMode;
+        if (isExcelEditMode) {
+            select.classList.remove('opacity-60', 'cursor-not-allowed', 'pointer-events-none', 'bg-slate-100', 'border-slate-200');
+            select.classList.add('bg-white');
+        } else {
+            select.classList.add('opacity-60', 'cursor-not-allowed', 'pointer-events-none', 'bg-slate-100', 'border-slate-200');
+            select.classList.remove('bg-white');
+        }
+    });
+
+    // Toggle + Add Field button visibility
+    const addColBtn = document.getElementById('excel-add-col-btn');
+    if (addColBtn) {
+        addColBtn.classList.toggle('hidden', !isExcelEditMode);
+    }
+
+    // Lock/Unlock contenteditable on data cells
     const allCells = document.querySelectorAll('.excel-cell');
     allCells.forEach(cell => {
         if (isExcelEditMode) {
@@ -2854,8 +2875,8 @@ function setExcelEditMode(enabled) {
     });
 }
 
-document.getElementById('excel-edit-mode-toggle-btn')?.addEventListener('click', () => {
-    setExcelEditMode(!isExcelEditMode);
+document.getElementById('excel-edit-mode-switch')?.addEventListener('change', (e) => {
+    setExcelEditMode(e.target.checked);
 });
 
 function extractRowFields(rowIdx) {
@@ -3190,9 +3211,10 @@ function renderExcelPreviewTable() {
                     ${mappedCount} Columns Mapped, ${skippedCount} Skipped
                 </span>
             </div>
-            <div class="flex items-center gap-2 text-xs text-slate-500">
-                <i class="fas fa-info-circle text-blue-500"></i>
-                <span>Remap headers via dropdowns or turn Edit Mode ON to edit cells directly</span>
+            <div class="flex items-center gap-2 text-xs">
+                ${isExcelEditMode 
+                    ? '<span class="text-emerald-700 font-bold flex items-center gap-1.5"><i class="fas fa-edit"></i> Edit & Mapping Mode Active: Click cells to edit, change dropdowns to remap</span>' 
+                    : '<span class="text-slate-500 flex items-center gap-1.5"><i class="fas fa-lock text-slate-400"></i> Standard View (Turn ON switch above to edit cells or remap headers)</span>'}
             </div>
         </div>
         <div class="overflow-x-auto max-h-[460px] overflow-y-auto">
@@ -3206,6 +3228,10 @@ function renderExcelPreviewTable() {
                         ${excelColumns.map(col => {
                             const isSkipped = col.mappedField === 'none';
                             const headerBg = isSkipped ? 'bg-slate-50' : 'bg-slate-100';
+                            const disabledAttr = !isExcelEditMode ? 'disabled' : '';
+                            const selectStyleClass = !isExcelEditMode
+                                ? 'opacity-60 cursor-not-allowed pointer-events-none bg-slate-100 border-slate-200 text-slate-500'
+                                : (isSkipped ? 'border-slate-300 text-slate-500 bg-white' : 'border-blue-400 text-blue-900 font-semibold bg-white');
                             return `
                                 <th class="p-2 border-b border-r ${headerBg} min-w-[155px] max-w-[220px]">
                                     <div class="flex items-center justify-between gap-1 mb-1">
@@ -3214,7 +3240,7 @@ function renderExcelPreviewTable() {
                                         </span>
                                         ${isSkipped ? '<span class="text-[9px] px-1 bg-slate-200 text-slate-600 rounded">SKIP</span>' : ''}
                                     </div>
-                                    <select class="excel-col-map-dropdown w-full p-1 bg-white border ${isSkipped ? 'border-slate-300 text-slate-500' : 'border-blue-400 text-blue-900 font-semibold'} rounded text-[11px] shadow-2xs focus:ring-1 focus:ring-blue-500" data-col-id="${col.id}">
+                                    <select class="excel-col-map-dropdown w-full p-1 border ${selectStyleClass} rounded text-[11px] shadow-2xs focus:ring-1 focus:ring-blue-500" data-col-id="${col.id}" ${disabledAttr}>
                                         ${EXCEL_SCHEMA_FIELDS.map(f => `
                                             <option value="${f.key}" ${col.mappedField === f.key ? 'selected' : ''}>
                                                 ${escapeHtml(f.label)}
@@ -3225,7 +3251,7 @@ function renderExcelPreviewTable() {
                             `;
                         }).join('')}
                         <th class="p-2 border-b bg-slate-100 text-center w-28">
-                            <button type="button" id="excel-add-col-btn" class="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded text-xs font-semibold whitespace-nowrap transition flex items-center gap-1 mx-auto shadow-2xs">
+                            <button type="button" id="excel-add-col-btn" class="${!isExcelEditMode ? 'hidden' : ''} px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded text-xs font-semibold whitespace-nowrap transition flex items-center gap-1 mx-auto shadow-2xs">
                                 <i class="fas fa-plus-circle text-blue-600"></i> Add Field
                             </button>
                         </th>

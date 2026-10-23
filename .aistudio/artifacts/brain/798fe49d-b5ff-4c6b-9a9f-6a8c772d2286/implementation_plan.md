@@ -1,161 +1,112 @@
-# Interactive In-Table Excel Spreadsheet Editor & Dynamic Column Remapping Plan
+# Dedicated Toggle Switch & Mode-Locked Column Mapping Architecture
 
-## 1. Overview & Architecture
+## 1. Overview & Requirements
 
-Provide an interactive, spreadsheet-like data grid in the **Admin Bulk Student Upload** portal (`admin.html` & `scripts/pages/admin-page.js`). Enables administrators to:
-1. **Remap Columns via Header Dropdowns**: Automatically detect and map column headings from any uploaded Excel sheet, while allowing manual re-assignment or skipping of unconventional or extra columns via dropdowns inside each column header.
-2. **Interactive In-Table Cell Editing with Real-Time Validation**: Toggle an "Edit Mode" switch above the preview table to edit any student cell directly in the browser. Correcting typos, missing names, or invalid dates dynamically re-validates rows and updates readiness badges in real time without needing to edit and re-upload the file.
+Transform the Excel Edit Mode activation into a **modern iOS-style sliding Toggle Switch** and enforce strict mode locking:
+1. **Real Sliding Toggle Switch**: Replace the button with a toggle switch component (track + sliding thumb + dynamic state label: `OFF` / `ON`).
+2. **Strict Mode Separation**:
+   - **When Switch is OFF (Default)**:
+     - The preview table is in standard clean view.
+     - Column mapping dropdowns are disabled and locked from accidental changes.
+     - Table cells are strictly read-only.
+     - The "+ Add Field" column button is hidden.
+     - Guidance banner is hidden.
+   - **When Switch is ON**:
+     - Column header mapping dropdowns become fully interactive, allowing administrators to re-assign or skip columns.
+     - In-table cell editing activates with `contenteditable="true"` and spreadsheet focus outlines.
+     - The "+ Add Field" button displays.
+     - The active guidance banner displays with real-time editing hints.
 
 ---
 
-### User Confirmed Decisions (from Phase 1 Clarification)
-- **Cell Editing Activation**: A dedicated **"Excel Edit Mode" toggle button** placed at the top of the preview table toolbar to turn cell editing ON or OFF.
-- **Column Header Remapping Placement**: A **dropdown selector embedded directly inside each column header** of the preview table, displaying the original Excel column heading alongside its target student field mapping.
-- **Language Policy**: Technical communication with user in Malayalam; all UI text, labels, and notifications in English only.
+## 2. Technical Implementation Details
 
----
-
-## 2. Technical Design & Flow
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│  EXCEL UPLOAD WORKFLOW                                                 │
-│                                                                        │
-│  1. Upload .xlsx/.xls File                                             │
-│       │                                                                │
-│       ▼                                                                │
-│  2. Read Sheet Columns & Auto-Detect Mappings via Alias Matcher        │
-│       │                                                                │
-│       ▼                                                                │
-│  3. Render Table with Header Dropdowns & Edit Mode Toggle               │
-│       │                                                                │
-│       ├──► [Dropdown Changed] ──► Re-map column ──► Re-validate dataset │
-│       │                                                                │
-│       └──► [Edit Mode ON] ─────► Click cell ──► Edit text ─────────────┤
-│                                                      │                 │
-│                                                      ▼                 │
-│                                           Real-Time Row Validation     │
-│                                           (e.g., Missing Name filled   │
-│                                            -> Badge: FATAL to READY!)  │
-└────────────────────────────────────────────────────────────────────────┘
+### A. Toggle Switch Component (`admin.html`)
+Replace the push button `#excel-edit-mode-toggle-btn` with a Tailwind toggle switch:
+```html
+<label for="excel-edit-mode-switch" class="inline-flex items-center gap-2.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-slate-400 rounded-lg cursor-pointer shadow-xs select-none transition">
+    <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+        <i class="fas fa-sliders-h text-emerald-600"></i>
+        <span>Edit & Mapping Mode</span>
+    </span>
+    <!-- Sliding Switch -->
+    <div class="relative inline-flex items-center cursor-pointer">
+        <input type="checkbox" id="excel-edit-mode-switch" class="sr-only peer">
+        <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+    </div>
+    <span id="excel-edit-mode-status" class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">OFF</span>
+</label>
 ```
 
-### A. Column Schema & Mapping
-Available standard student target fields:
-1. `name` - **Student Name \*** (Mandatory)
-2. `adm` - **Admission No**
-3. `dob` - **Date of Birth (DOB)**
-4. `admDate` - **Admission Date**
-5. `gender` - **Gender**
-6. `uid` - **ID / UID / Roll No**
-7. `father` - **Father's Name**
-8. `mother` - **Mother's Name**
-9. `mobile` - **Father Phone / Mobile**
-10. `motherMobile` - **Mother Phone**
-11. `adhaar` - **Aadhaar Number**
-12. `samastha` - **Samastha Reg ID**
-13. `address` - **Permanent Address**
-14. `status` - **Student Status**
-15. `none` - **-- Ignore / Skip Column --**
-
-### B. State Management in `admin-page.js`
-- `rawExcelRows`: Original row data parsed directly from the workbook sheet.
-- `rawExcelColumns`: Array of column header names found in the sheet.
-- `currentColumnMapping`: Object mapping `{ [excelColName]: targetFieldKey }`.
-- `isExcelEditMode`: Boolean tracking whether in-table cell editing is enabled.
-- `excelParsedData`: Normalized student objects generated by applying `currentColumnMapping` to `rawExcelRows`, supplemented with field status objects for real-time validation.
-
-### C. Live Cell Editing & Re-Validation
-- When Edit Mode is active, preview table data cells (`<td>`) receive `contenteditable="true"` (or click-to-edit inputs) and spreadsheet focus styling.
-- On cell `input` / `blur`:
-  - The modified string updates the corresponding property in `excelParsedData[rowIndex]`.
-  - The row's validation logic (`validateSingleStudentRow(row)`) re-evaluates:
-    - If `name` was blank and user enters a name, `hasFatalError` changes from `true` to `false`, and badge dynamically shifts from `FATAL` to `READY`.
-    - If a date format was corrected (e.g., `15-05-2015`), `dob` normalizes and the issue warning clears.
-    - If duplicate matches change, badge updates to `EXISTING`.
-  - Summary stats counters (`stat-total-records`, `stat-valid-records`, `stat-issue-records`, `stat-merge-records`) update instantly.
-  - Action buttons (`Import All Ready Students`, `Upload Valid Only`) re-evaluate their enabled/disabled states.
+### B. Mode Control in JavaScript (`scripts/pages/admin-page.js`)
+1. **Switch Event**:
+   - Listen to `change` event on `#excel-edit-mode-switch`.
+   - Call `setExcelEditMode(switchElement.checked)`.
+2. **`setExcelEditMode(enabled)` Behavior**:
+   - Updates `isExcelEditMode = enabled`.
+   - Updates status label text (`OFF` vs `ON`) and color (`text-slate-500` vs `text-emerald-700`).
+   - Toggles guidance banner.
+   - Enables or disables all `.excel-col-map-dropdown` elements (`select.disabled = !isExcelEditMode`).
+   - Toggles `.excel-add-col-btn` visibility.
+   - Toggles `contenteditable="true"` on `.excel-cell` elements.
+3. **Table Render (`renderExcelPreviewTable`)**:
+   - When rendering headers, if `!isExcelEditMode`:
+     - Dropdowns render with `disabled` and clean locked styling.
+     - "+ Add Field" button rendered as hidden.
+   - When `isExcelEditMode`:
+     - Dropdowns render enabled and prominent.
+     - "+ Add Field" button rendered as visible.
 
 ---
 
-## 3. UI/UX Specifications
-
-### 1. Table Toolbar
-- Left: Record count, class label, file name.
-- Center / Right:
-  - **Edit Mode Switch**:
-    ```html
-    <button id="excel-edit-mode-toggle" class="px-3 py-1.5 rounded-lg border text-xs font-bold transition flex items-center gap-2 ...">
-        <i class="fas fa-edit"></i>
-        <span>Edit Mode: <b>OFF</b></span>
-    </button>
-    ```
-  - When ON, button turns emerald (`bg-emerald-600 text-white`) and a helpful guidance pill appears:
-    `"Excel Edit Mode Active: Click any cell to edit text directly. Validation updates in real time."`
-
-### 2. Table Column Header (`<th>`)
-Each column header includes:
-- Excel column title (e.g., `"STUDENT_NAME"`, `"CONTACT_NO"`, `"AADHAAR"`).
-- Target field dropdown selector:
-  ```html
-  <select class="excel-header-mapper w-full mt-1.5 p-1 bg-white border border-slate-300 rounded text-[11px] font-semibold text-slate-700">
-      <option value="name">Student Name *</option>
-      <option value="adm">Admission No</option>
-      ...
-      <option value="none">-- Skip Column --</option>
-  </select>
-  ```
-- Changing a dropdown immediately re-maps and re-validates the entire table.
-
-### 3. Interactive Data Cells
-- When Edit Mode is ON:
-  - Cell background has a subtle editable hint (`hover:bg-amber-50 cursor-text`).
-  - Active cell receives a crisp blue focus outline (`outline outline-2 outline-blue-500 bg-white`).
-  - Keyboard navigation (Tab/Shift+Tab) moves cleanly between cells.
-
----
-
-## 4. Affected Files
+## 3. Affected Files
 
 1. **`admin.html`**:
-   - Preview area toolbar container updates to support the Excel Edit Mode toggle button and quick-action tools.
+   - Replace button with sliding toggle switch structure.
 2. **`scripts/pages/admin-page.js`**:
-   - Refactor `handleExcelFile(file)` to store `rawExcelRows` and `rawExcelColumns`.
-   - Implement `autoDetectColumnMapping(columns)` using expanded alias patterns.
-   - Implement `evaluateExcelRowsFromMapping()` for dynamic re-mapping and validation.
-   - Implement `renderExcelPreviewTable()` with embedded header dropdowns and editable cells.
-   - Implement `validateSingleStudentRow(student)` for instant reactive validation.
-   - Wire cell `input`/`blur` events and header dropdown `change` events.
-3. **`styles/main.css`** (if needed):
-   - Add spreadsheet-like focus, active cell outlines, and column mapping dropdown styling.
+   - Wire `#excel-edit-mode-switch` change event.
+   - Enforce mode lock on header dropdowns, cells, and add-field buttons.
+
+---
+
+## 4. Risks & Mitigations
+
+- **Risk**: User accidentally changes a column mapping while scrolling.
+  - **Mitigation**: With the switch OFF by default, all dropdowns are strictly disabled and locked against accidental clicks.
+- **Risk**: Toggle state desyncing after cancel/reset.
+  - **Mitigation**: Reset explicitly sets `excelEditModeSwitch.checked = false` and invokes `setExcelEditMode(false)`.
 
 ---
 
 ## 5. Verification & Testing Plan
 
-1. **Auto-Mapping Test**:
-   - Upload sample Excel files with standard headers (`Name`, `Adm No`, `DOB`, `Phone`) -> verify auto-detection.
-   - Upload Excel with custom headers (`Student Full Name`, `Mobile Contact`, `Extra Column`) -> verify correct auto-selection or fallback to "Skip Column".
-2. **Manual Remapping Test**:
-   - Change a column dropdown (e.g., map an unmapped column to `Father Phone`) -> verify all rows immediately populate father phone and re-validate.
-3. **In-Table Cell Editing Test**:
-   - Toggle Edit Mode ON.
-   - Click a cell with a missing student name (showing red `FATAL`). Type a student name and click out.
-   - Verify badge immediately flips from `FATAL` to `READY` and valid count increases by 1.
-   - Edit date or mobile number and verify real-time normalization and indicator updates.
-4. **Import Execution Test**:
-   - Verify that edited values are correctly saved to Firestore when "Upload All Ready Students" is clicked.
-5. **Compilation & Lint Verification**:
-   - Run `compile_applet` and `lint_applet` to confirm zero errors or TypeScript issues.
+1. **Visual Switch Test**:
+   - Verify that the toggle switch animates smoothly between OFF and ON.
+2. **Locking Test (When Switch is OFF)**:
+   - Verify that table cells cannot be edited or typed into.
+   - Verify that column header dropdowns are disabled and cannot be changed.
+   - Verify that "+ Add Field" is hidden.
+3. **Activation Test (When Switch is ON)**:
+   - Verify that column dropdowns can be changed and re-map the data instantly.
+   - Verify that cells can be edited and dynamically re-validate rows.
+   - Verify that "+ Add Field" is clickable.
+4. **Build & Lint Verification**:
+   - Run `compile_applet` and `lint_applet` to confirm zero errors.
 
 ---
 
 ## 6. Implementation Status & Verification Results
 
-- [x] **Excel Edit Mode Toggle & Guidance Banner (`admin.html`)**: Added `#excel-edit-mode-toggle-btn` and pulsing `#excel-edit-mode-banner` above the preview grid for 1-click spreadsheet edit mode toggling.
-- [x] **Interactive In-Table Spreadsheet Cell Editor (`scripts/pages/admin-page.js`)**: Implemented dynamic `contenteditable="true"` cells with Excel-like focus styling, spreadsheet cell navigation (Enter jumps to cell below, Tab jumps horizontally), and live `blur`/`input` listeners.
-- [x] **Column Header Remapping Dropdowns (`scripts/pages/admin-page.js`)**: Integrated `<select class="excel-col-map-dropdown">` directly inside each column header, auto-detecting matching student fields and allowing real-time re-assignment or skipping of extra/unconventional columns.
-- [x] **Dynamic "+ Add Field" Column Capability (`scripts/pages/admin-page.js`)**: Added button to append any unmapped standard student schema fields directly into the active spreadsheet grid.
-- [x] **Reactive Single-Row Re-Validation & Stats Recalculation**: Correcting a missing name instantly transitions row status from `FATAL` to `READY`, updates color indicators, and increments valid record counts in real time.
-- [x] **Upload Integration**: Confirmed that `executeBulkImport` utilizes `excelParsedData` with all in-browser edits and remapped fields preserved for Firestore batch upload.
-- [x] **Build & Lint Verification**: Verified with `compile_applet` and `lint_applet` (`tsc --noEmit`) - both passed with 0 errors.
+- [x] **Sliding Toggle Switch UI (`admin.html`)**: Replaced push-button with a sliding toggle switch (`#excel-edit-mode-switch`) with smooth sliding thumb and dynamic status indicator (`OFF` / `ON`).
+- [x] **Strict OFF State Locking (`scripts/pages/admin-page.js`)**:
+  - When switch is OFF: Preview table renders in standard clean view.
+  - Column mapping dropdowns are disabled and locked (`disabled` attribute + `pointer-events-none opacity-60`).
+  - Table cells are completely read-only (`removeAttribute('contenteditable')`).
+  - `+ Add Field` button is hidden.
+  - Subtitle shows `"Standard View (Turn ON switch above to edit cells or remap headers)"`.
+- [x] **Active ON State Capabilities (`scripts/pages/admin-page.js`)**:
+  - When switch is toggled ON: Column mapping dropdowns unlock and allow full re-mapping.
+  - Table cells activate spreadsheet editing (`contenteditable="true"` with cursor and green focus rings).
+  - `+ Add Field` button becomes visible and active.
+  - Live guidance banner displays.
+- [x] **Compilation & Lint Verification**: Both `compile_applet` and `lint_applet` (`tsc --noEmit`) succeeded with 0 errors.

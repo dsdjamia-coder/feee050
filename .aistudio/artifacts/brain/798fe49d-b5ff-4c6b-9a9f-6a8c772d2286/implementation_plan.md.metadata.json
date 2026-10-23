@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for Interactive In-Table Excel Spreadsheet Editor with cell editing toggle and dynamic column header remapping dropdowns in Admin Bulk Student Upload.",
-  "updatedAt":  "2026-10-23T05:51:20.661684156Z",
+  "summary":  "Implementation plan to replace push-button with a modern iOS/Tailwind Toggle Switch for Edit & Mapping Mode, and ensure column mapping dropdowns and cell editing are strictly locked unless the toggle switch is ON.",
+  "updatedAt":  "2026-10-23T06:09:41.873252444Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

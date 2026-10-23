@@ -521,10 +521,17 @@
                             </div>
                             <!-- Action Buttons at Top -->
                             <div class="flex flex-wrap items-center gap-2">
-                                <button type="button" id="excel-edit-mode-toggle-btn" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-sm border border-slate-300">
-                                    <i class="fas fa-edit text-emerald-600"></i>
-                                    <span>Edit Mode: <b id="excel-edit-mode-status" class="text-slate-600">OFF</b></span>
-                                </button>
+                                <label for="excel-edit-mode-switch" class="inline-flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg transition-all shadow-xs border border-slate-300 cursor-pointer select-none">
+                                    <span class="flex items-center gap-1.5 text-slate-700 font-bold">
+                                        <i class="fas fa-sliders-h text-emerald-600"></i>
+                                        <span>Edit & Mapping:</span>
+                                    </span>
+                                    <div class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="excel-edit-mode-switch" class="sr-only peer">
+                                        <div class="w-8 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-600"></div>
+                                    </div>
+                                    <span id="excel-edit-mode-status" class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">OFF</span>
+                                </label>
                                 <button type="button" id="cancel-upload-btn" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
                                     <i class="fas fa-times"></i> Cancel
                                 </button>
