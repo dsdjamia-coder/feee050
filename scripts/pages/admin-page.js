@@ -2738,6 +2738,28 @@ window.downloadCSVTemplate = () => {
 
 const dropZone = document.getElementById('excel-drop-zone'), fileInput = document.getElementById('excel-file-input');
 let excelParsedData = [];
+let excelWorkingRows = [];
+let excelColumns = [];
+let isExcelEditMode = false;
+
+const EXCEL_SCHEMA_FIELDS = [
+    { key: 'name', label: 'Student Name *', required: true },
+    { key: 'adm', label: 'Admission No' },
+    { key: 'dob', label: 'Date of Birth (DOB)' },
+    { key: 'admDate', label: 'Admission Date' },
+    { key: 'gender', label: 'Gender' },
+    { key: 'uid', label: 'ID / UID / Roll No' },
+    { key: 'father', label: "Father's Name" },
+    { key: 'mother', label: "Mother's Name" },
+    { key: 'mobile', label: 'Father Phone / Mobile' },
+    { key: 'motherMobile', label: 'Mother Phone' },
+    { key: 'adhaar', label: 'Aadhaar Number' },
+    { key: 'samastha', label: 'Samastha Reg ID' },
+    { key: 'address', label: 'Permanent Address' },
+    { key: 'status', label: 'Student Status' },
+    { key: 'none', label: '-- Skip / Ignore --' }
+];
+
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
@@ -2800,6 +2822,492 @@ function normalizeToIsoDate(val) {
     return str;
 }
 
+function setExcelEditMode(enabled) {
+    isExcelEditMode = enabled;
+    const btn = document.getElementById('excel-edit-mode-toggle-btn');
+    const statusLabel = document.getElementById('excel-edit-mode-status');
+    const banner = document.getElementById('excel-edit-mode-banner');
+
+    if (btn && statusLabel) {
+        if (isExcelEditMode) {
+            btn.className = "px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-sm border border-emerald-700";
+            statusLabel.textContent = "ON";
+            statusLabel.className = "text-white underline underline-offset-2";
+            if (banner) banner.classList.remove('hidden');
+        } else {
+            btn.className = "px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-sm border border-slate-300";
+            statusLabel.textContent = "OFF";
+            statusLabel.className = "text-slate-600";
+            if (banner) banner.classList.add('hidden');
+        }
+    }
+
+    const allCells = document.querySelectorAll('.excel-cell');
+    allCells.forEach(cell => {
+        if (isExcelEditMode) {
+            cell.setAttribute('contenteditable', 'true');
+            cell.classList.add('cursor-text', 'focus:outline-2', 'focus:outline-emerald-500', 'focus:bg-white', 'focus:z-10');
+        } else {
+            cell.removeAttribute('contenteditable');
+            cell.classList.remove('cursor-text', 'focus:outline-2', 'focus:outline-emerald-500', 'focus:bg-white', 'focus:z-10');
+        }
+    });
+}
+
+document.getElementById('excel-edit-mode-toggle-btn')?.addEventListener('click', () => {
+    setExcelEditMode(!isExcelEditMode);
+});
+
+function extractRowFields(rowIdx) {
+    const workingRow = excelWorkingRows[rowIdx] || {};
+    const extracted = {
+        name: '', adm: '', dob: '', admDate: '', gender: '', uid: '', father: '', mother: '',
+        mobile: '', motherMobile: '', adhaar: '', samastha: '', address: '', status: ''
+    };
+    excelColumns.forEach(c => {
+        if (c.mappedField && c.mappedField !== 'none') {
+            const rawVal = workingRow[c.id];
+            if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
+                if (!extracted[c.mappedField]) {
+                    extracted[c.mappedField] = String(rawVal).trim();
+                }
+            }
+        }
+    });
+    return extracted;
+}
+
+function validateAndBuildStudent(extracted, rowIdx, selectedBulkClass, existingClassStudents) {
+    const rawName = String(extracted.name || '').trim();
+    const rawDob = extracted.dob;
+    const dobVal = normalizeToIsoDate(rawDob);
+    const rawAdmDate = extracted.admDate;
+    const admDateVal = normalizeToIsoDate(rawAdmDate);
+    const adhaarVal = String(extracted.adhaar || '').trim();
+    const samasthaVal = String(extracted.samastha || '').trim();
+    const motherVal = String(extracted.mother || '').trim();
+    const motherMobileVal = String(extracted.motherMobile || '').trim();
+    const admVal = String(extracted.adm || '').toUpperCase().trim();
+    const uidVal = String(extracted.uid || '').trim();
+    const fatherVal = String(extracted.father || '').toUpperCase().trim();
+    const mobileVal = String(extracted.mobile || '').trim();
+    const addressVal = String(extracted.address || '').trim();
+    const statusVal = normalizeStudentStatus(String(extracted.status || ''));
+    const genderRaw = String(extracted.gender || '').toLowerCase().trim();
+    const genderVal = genderRaw.startsWith('f') ? 'Female' : 'Male';
+
+    const fieldStatuses = {};
+    const omittedFields = [];
+    const fatalReasons = [];
+
+    fieldStatuses.class = { status: 'valid', val: selectedBulkClass };
+
+    const hasFatalError = !rawName;
+    if (hasFatalError) {
+        fieldStatuses.name = { status: 'error', val: '', reason: 'Name is mandatory' };
+        fatalReasons.push('Missing Student Name');
+    } else {
+        fieldStatuses.name = { status: 'valid', val: rawName.toUpperCase().trim() };
+    }
+
+    if (!genderRaw) {
+        fieldStatuses.gender = { status: 'blank', val: genderVal, note: 'Defaulted to Male' };
+    } else {
+        fieldStatuses.gender = { status: 'valid', val: genderVal };
+    }
+
+    fieldStatuses.uid = uidVal ? { status: 'valid', val: uidVal } : { status: 'blank', val: '' };
+    fieldStatuses.father = fatherVal ? { status: 'valid', val: fatherVal } : { status: 'blank', val: '' };
+    fieldStatuses.mother = motherVal ? { status: 'valid', val: motherVal.toUpperCase() } : { status: 'blank', val: '' };
+    fieldStatuses.adm = admVal ? { status: 'valid', val: admVal } : { status: 'blank', val: '' };
+
+    let cleanDob = '';
+    if (rawDob) {
+        if (dobVal) {
+            cleanDob = dobVal;
+            fieldStatuses.dob = { status: 'valid', val: cleanDob };
+        } else {
+            fieldStatuses.dob = { status: 'error', val: String(rawDob), reason: 'Invalid date format (will be saved as blank)' };
+            omittedFields.push('Date of Birth');
+        }
+    } else {
+        fieldStatuses.dob = { status: 'blank', val: '' };
+    }
+
+    let cleanAdmDate = '';
+    if (rawAdmDate) {
+        if (admDateVal) {
+            cleanAdmDate = admDateVal;
+            fieldStatuses.admDate = { status: 'valid', val: cleanAdmDate };
+        } else {
+            fieldStatuses.admDate = { status: 'error', val: String(rawAdmDate), reason: 'Invalid date format (will be saved as blank)' };
+            omittedFields.push('Admission Date');
+        }
+    } else {
+        fieldStatuses.admDate = { status: 'blank', val: '' };
+    }
+
+    fieldStatuses.status = { status: 'valid', val: statusVal };
+
+    let cleanAadhaar = '';
+    if (adhaarVal) {
+        const digits = adhaarVal.replace(/\D/g, '');
+        if (digits.length === 12) {
+            cleanAadhaar = digits;
+            fieldStatuses.adhaar = { status: 'valid', val: cleanAadhaar };
+        } else {
+            fieldStatuses.adhaar = { status: 'error', val: adhaarVal, reason: 'Invalid Aadhaar (must be 12 digits, will be skipped)' };
+            omittedFields.push('Aadhaar Number');
+        }
+    } else {
+        fieldStatuses.adhaar = { status: 'blank', val: '' };
+    }
+
+    let cleanMobile = '';
+    if (mobileVal) {
+        const digits = mobileVal.replace(/\D/g, '');
+        if (digits.length >= 10 && digits.length <= 15) {
+            cleanMobile = digits;
+            fieldStatuses.mobile = { status: 'valid', val: cleanMobile };
+        } else {
+            fieldStatuses.mobile = { status: 'error', val: mobileVal, reason: 'Invalid Mobile Number (will be skipped)' };
+            omittedFields.push('Father Mobile');
+        }
+    } else {
+        fieldStatuses.mobile = { status: 'blank', val: '' };
+    }
+
+    let cleanMotherMobile = '';
+    if (motherMobileVal) {
+        const digits = motherMobileVal.replace(/\D/g, '');
+        if (digits.length >= 10 && digits.length <= 15) {
+            cleanMotherMobile = digits;
+            fieldStatuses.motherMobile = { status: 'valid', val: cleanMotherMobile };
+        } else {
+            fieldStatuses.motherMobile = { status: 'error', val: motherMobileVal, reason: 'Invalid Mother Mobile Number (will be skipped)' };
+            omittedFields.push('Mother Mobile');
+        }
+    } else {
+        fieldStatuses.motherMobile = { status: 'blank', val: '' };
+    }
+
+    fieldStatuses.samastha = samasthaVal ? { status: 'valid', val: samasthaVal } : { status: 'blank', val: '' };
+    fieldStatuses.address = addressVal ? { status: 'valid', val: addressVal } : { status: 'blank', val: '' };
+
+    const studentObj = {
+        name: rawName ? rawName.toUpperCase().trim() : '',
+        gender: genderVal,
+        class: selectedBulkClass,
+        uid: uidVal,
+        father: fatherVal,
+        mother: motherVal ? motherVal.toUpperCase() : '',
+        adm: admVal,
+        dob: cleanDob,
+        admDate: cleanAdmDate,
+        status: statusVal,
+        adhaar: cleanAadhaar,
+        mobile: cleanMobile,
+        motherMobile: cleanMotherMobile,
+        samastha: samasthaVal,
+        address: addressVal,
+        photoUrl: '',
+        academicYear: currentAcademicYear || '',
+        fees: {},
+        rowIdx: rowIdx,
+        hasFatalError: hasFatalError,
+        hasOmittedFields: omittedFields.length > 0,
+        omittedFields: omittedFields,
+        fatalReasons: fatalReasons,
+        fieldStatuses: fieldStatuses
+    };
+
+    const candAdm = studentObj.adm;
+    const candName = studentObj.name;
+    const candUid = studentObj.uid;
+    const candMobile = studentObj.mobile;
+
+    const existingMatch = existingClassStudents.find(exist => {
+        const existAdm = String(exist.adm || '').toUpperCase().trim();
+        const existName = String(exist.name || '').toUpperCase().trim();
+        const existUid = String(exist.uid || '').toUpperCase().trim();
+        const existMobile = String(exist.mobile || '').trim();
+
+        if (candAdm && existAdm && candAdm === existAdm) return true;
+        if (candUid && existUid && candUid === existUid) return true;
+        if (candName && existName && candName === existName) {
+            if (candMobile && existMobile && candMobile === existMobile) return true;
+            if (!candAdm && !existAdm) return true;
+        }
+        return false;
+    });
+
+    studentObj.existingMatch = existingMatch || null;
+    studentObj.isDuplicate = !!existingMatch;
+
+    return studentObj;
+}
+
+function recalculateExcelStats() {
+    const totalCount = excelParsedData.length;
+    const validStudents = excelParsedData.filter(s => !s.hasFatalError);
+    const completelyValidStudents = excelParsedData.filter(s => !s.hasFatalError && (s.omittedFields?.length || 0) === 0);
+    const fatalRows = excelParsedData.filter(s => s.hasFatalError);
+    const validCount = validStudents.length;
+    const completelyValidCount = completelyValidStudents.length;
+    const fatalCount = fatalRows.length;
+    const totalOmittedFields = validStudents.reduce((acc, s) => acc + (s.omittedFields?.length || 0), 0);
+    const mergeCount = validStudents.filter(s => s.isDuplicate).length;
+
+    const statTotal = document.getElementById('stat-total-records');
+    const statValid = document.getElementById('stat-valid-records');
+    const statIssue = document.getElementById('stat-issue-records');
+    const statMerge = document.getElementById('stat-merge-records');
+    if (statTotal) statTotal.textContent = totalCount;
+    if (statValid) statValid.textContent = completelyValidCount;
+    if (statIssue) {
+        if (fatalCount > 0 && totalOmittedFields > 0) {
+            statIssue.textContent = `${fatalCount} Fatal (${totalOmittedFields} skipped)`;
+        } else if (fatalCount > 0) {
+            statIssue.textContent = `${fatalCount} Fatal`;
+        } else if (totalOmittedFields > 0) {
+            statIssue.textContent = `${totalOmittedFields} fields skipped`;
+        } else {
+            statIssue.textContent = '0';
+        }
+    }
+    if (statMerge) statMerge.textContent = mergeCount;
+
+    const startBtn = document.getElementById('start-upload-btn');
+    const startBtnText = document.getElementById('start-upload-btn-text');
+    const skipBtn = document.getElementById('skip-issues-upload-btn');
+    const validOnlyCountSpan = document.getElementById('valid-only-count');
+
+    if (validCount === 0) {
+        if (startBtn) {
+            startBtn.disabled = true;
+            if (startBtnText) startBtnText.textContent = 'Cannot Upload (Missing Names)';
+        }
+        if (skipBtn) {
+            skipBtn.classList.add('hidden');
+            skipBtn.disabled = true;
+        }
+    } else {
+        if (startBtn) {
+            startBtn.disabled = false;
+            if (startBtnText) {
+                startBtnText.textContent = `Upload All (${validCount})`;
+            }
+        }
+        if (skipBtn) {
+            skipBtn.classList.remove('hidden');
+            if (validOnlyCountSpan) validOnlyCountSpan.textContent = completelyValidCount;
+            skipBtn.disabled = completelyValidCount === 0;
+        }
+    }
+
+    const dupContainer = document.getElementById('duplicate-policy-container');
+    const dupDetectedCount = document.getElementById('duplicate-detected-count');
+    if (dupContainer) {
+        if (mergeCount > 0) {
+            dupContainer.classList.remove('hidden');
+            if (dupDetectedCount) dupDetectedCount.textContent = mergeCount;
+        } else {
+            dupContainer.classList.add('hidden');
+        }
+    }
+}
+
+function updateRowDomAfterEdit(rowIdx) {
+    const tr = document.getElementById(`excel-preview-row-${rowIdx}`);
+    if (!tr) return;
+    const s = excelParsedData[rowIdx];
+    if (!s) return;
+
+    tr.className = s.hasFatalError 
+        ? 'bg-rose-50/60 hover:bg-rose-100/50 transition-colors' 
+        : (s.hasOmittedFields 
+            ? 'bg-amber-50/40 hover:bg-amber-100/40 transition-colors' 
+            : (s.isDuplicate 
+                ? 'bg-sky-50/50 hover:bg-sky-100/50 transition-colors' 
+                : 'hover:bg-slate-50 transition-colors'));
+
+    const statusCell = tr.querySelector('.excel-row-status-cell');
+    if (statusCell) {
+        if (s.hasFatalError) {
+            statusCell.innerHTML = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-200 text-rose-800" title="${escapeHtml(s.fatalReasons.join(', '))}">FATAL</span>`;
+        } else if (s.hasOmittedFields) {
+            statusCell.innerHTML = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200" title="Valid student (${s.omittedFields.length} invalid field(s) skipped: ${escapeHtml(s.omittedFields.join(', '))})">READY (${s.omittedFields.length} SKIPPED)</span>`;
+        } else if (s.isDuplicate) {
+            statusCell.innerHTML = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-200 text-sky-800" title="Matches existing student in this class">EXISTING</span>`;
+        } else {
+            statusCell.innerHTML = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">READY</span>`;
+        }
+    }
+
+    excelColumns.forEach(c => {
+        const td = tr.querySelector(`.excel-cell[data-col-id="${c.id}"]`);
+        if (!td) return;
+        const mappedField = c.mappedField;
+        if (mappedField && mappedField !== 'none') {
+            const fStatus = s.fieldStatuses?.[mappedField];
+            if (fStatus?.status === 'error') {
+                td.classList.add('bg-rose-50', 'text-rose-900', 'border-rose-200', 'font-semibold');
+                td.classList.remove('bg-amber-50/60', 'text-amber-800');
+                td.title = fStatus.reason || 'Invalid data';
+            } else if (fStatus?.status === 'blank') {
+                td.classList.add('bg-amber-50/60', 'text-amber-800');
+                td.classList.remove('bg-rose-50', 'text-rose-900', 'border-rose-200', 'font-semibold');
+                td.title = 'Blank / Not provided';
+            } else {
+                td.classList.remove('bg-rose-50', 'text-rose-900', 'border-rose-200', 'font-semibold', 'bg-amber-50/60', 'text-amber-800');
+                td.title = '';
+            }
+        }
+    });
+
+    recalculateExcelStats();
+}
+
+function renderExcelPreviewTable() {
+    const previewContainer = document.getElementById('excel-preview-table-container');
+    if (!previewContainer) return;
+
+    if (!excelParsedData || excelParsedData.length === 0) {
+        previewContainer.innerHTML = '';
+        previewContainer.classList.add('hidden');
+        return;
+    }
+
+    const mappedCount = excelColumns.filter(c => c.mappedField && c.mappedField !== 'none').length;
+    const skippedCount = excelColumns.length - mappedCount;
+
+    let html = `
+        <div class="px-3 py-2 bg-slate-100/90 border-b border-slate-200 text-xs font-semibold text-slate-800 flex flex-wrap justify-between items-center gap-2">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-file-spreadsheet text-emerald-600"></i>
+                <span>Complete Spreadsheet Preview (${excelParsedData.length} records)</span>
+                <span class="text-[11px] font-normal text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
+                    ${mappedCount} Columns Mapped, ${skippedCount} Skipped
+                </span>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-500">
+                <i class="fas fa-info-circle text-blue-500"></i>
+                <span>Remap headers via dropdowns or turn Edit Mode ON to edit cells directly</span>
+            </div>
+        </div>
+        <div class="overflow-x-auto max-h-[460px] overflow-y-auto">
+            <table class="w-full text-xs text-left text-slate-700 border-collapse border-slate-200">
+                <thead class="bg-slate-100 text-slate-700 font-bold sticky top-0 z-20 shadow-sm border-b-2 border-slate-300">
+                    <tr>
+                        <th class="p-2 border-b border-r bg-slate-100 text-center w-10 text-slate-500 font-mono">#</th>
+                        <th class="p-2 border-b border-r bg-slate-100 text-center w-24">
+                            <span class="block text-[11px] uppercase tracking-wider text-slate-600">Status</span>
+                        </th>
+                        ${excelColumns.map(col => {
+                            const isSkipped = col.mappedField === 'none';
+                            const headerBg = isSkipped ? 'bg-slate-50' : 'bg-slate-100';
+                            return `
+                                <th class="p-2 border-b border-r ${headerBg} min-w-[155px] max-w-[220px]">
+                                    <div class="flex items-center justify-between gap-1 mb-1">
+                                        <span class="text-[11px] font-mono text-slate-700 truncate" title="${escapeHtml(col.header)}">
+                                            ${escapeHtml(col.header)}
+                                        </span>
+                                        ${isSkipped ? '<span class="text-[9px] px-1 bg-slate-200 text-slate-600 rounded">SKIP</span>' : ''}
+                                    </div>
+                                    <select class="excel-col-map-dropdown w-full p-1 bg-white border ${isSkipped ? 'border-slate-300 text-slate-500' : 'border-blue-400 text-blue-900 font-semibold'} rounded text-[11px] shadow-2xs focus:ring-1 focus:ring-blue-500" data-col-id="${col.id}">
+                                        ${EXCEL_SCHEMA_FIELDS.map(f => `
+                                            <option value="${f.key}" ${col.mappedField === f.key ? 'selected' : ''}>
+                                                ${escapeHtml(f.label)}
+                                            </option>
+                                        `).join('')}
+                                    </select>
+                                </th>
+                            `;
+                        }).join('')}
+                        <th class="p-2 border-b bg-slate-100 text-center w-28">
+                            <button type="button" id="excel-add-col-btn" class="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded text-xs font-semibold whitespace-nowrap transition flex items-center gap-1 mx-auto shadow-2xs">
+                                <i class="fas fa-plus-circle text-blue-600"></i> Add Field
+                            </button>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-sans">
+                    ${excelParsedData.map((s, idx) => {
+                        const workingRow = excelWorkingRows[idx] || {};
+                        let rowBg = 'hover:bg-slate-50';
+                        let statusBadge = '';
+                        
+                        if (s.hasFatalError) {
+                            rowBg = 'bg-rose-50/60 hover:bg-rose-100/50';
+                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-200 text-rose-800" title="${escapeHtml(s.fatalReasons.join(', '))}">FATAL</span>`;
+                        } else if (s.hasOmittedFields) {
+                            rowBg = 'bg-amber-50/40 hover:bg-amber-100/40';
+                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200" title="Valid student (${s.omittedFields.length} invalid field(s) skipped: ${escapeHtml(s.omittedFields.join(', '))})">READY (${s.omittedFields.length} SKIPPED)</span>`;
+                        } else if (s.isDuplicate) {
+                            rowBg = 'bg-sky-50/50 hover:bg-sky-100/50';
+                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-200 text-sky-800" title="Matches existing student in this class">EXISTING</span>`;
+                        } else {
+                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">READY</span>`;
+                        }
+
+                        return `
+                            <tr id="excel-preview-row-${idx}" class="${rowBg} transition-colors">
+                                <td class="p-2 text-center text-slate-400 border-b border-r border-slate-100 font-mono text-xs">${idx + 1}</td>
+                                <td class="excel-row-status-cell p-2 border-b border-r border-slate-100 text-center whitespace-nowrap">${statusBadge}</td>
+                                ${excelColumns.map(col => {
+                                    const val = workingRow[col.id] !== undefined && workingRow[col.id] !== null ? String(workingRow[col.id]) : '';
+                                    const isSkipped = col.mappedField === 'none';
+                                    let bgClass = '';
+                                    let titleAttr = '';
+                                    
+                                    if (isSkipped) {
+                                        bgClass = 'bg-slate-50/50 text-slate-400 italic';
+                                        titleAttr = 'title="Column skipped from import"';
+                                    } else {
+                                        const fStatus = s.fieldStatuses?.[col.mappedField];
+                                        if (fStatus?.status === 'error') {
+                                            bgClass = 'bg-rose-50 text-rose-900 border-rose-200 font-semibold';
+                                            titleAttr = `title="${escapeHtml(fStatus.reason || 'Invalid data')}"`;
+                                        } else if (fStatus?.status === 'blank' || !val.trim()) {
+                                            bgClass = 'bg-amber-50/60 text-amber-800';
+                                            titleAttr = 'title="Blank / Not provided"';
+                                        }
+                                    }
+
+                                    const editAttrs = isExcelEditMode 
+                                        ? 'contenteditable="true" class="excel-cell p-2 border-b border-r border-slate-200 whitespace-nowrap cursor-text focus:outline focus:outline-2 focus:outline-emerald-500 focus:bg-white focus:z-10 transition-all font-mono text-xs ' + bgClass + '"'
+                                        : 'class="excel-cell p-2 border-b border-r border-slate-100 whitespace-nowrap text-xs ' + bgClass + '"';
+
+                                    const displayVal = val.trim() ? escapeHtml(val) : '<span class="text-slate-300 font-normal">--</span>';
+
+                                    return `<td ${editAttrs} data-row-idx="${idx}" data-col-id="${col.id}" ${titleAttr}>${displayVal}</td>`;
+                                }).join('')}
+                                <td class="p-2 border-b border-slate-100 bg-slate-50/30"></td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    previewContainer.innerHTML = html;
+    previewContainer.classList.remove('hidden');
+}
+
+function rebuildAllExcelDataAndRender() {
+    const selectedBulkClass = (document.getElementById('bulk-upload-class')?.value || '').toUpperCase().trim();
+    const existingClassStudents = students.filter(st => String(st.class || '').toUpperCase().trim() === selectedBulkClass);
+
+    excelParsedData = excelWorkingRows.map((_, rowIdx) => {
+        const extracted = extractRowFields(rowIdx);
+        return validateAndBuildStudent(extracted, rowIdx, selectedBulkClass, existingClassStudents);
+    });
+
+    recalculateExcelStats();
+    renderExcelPreviewTable();
+}
+
 function handleExcelFile(file) {
     const selectedBulkClass = (document.getElementById('bulk-upload-class')?.value || '').toUpperCase().trim();
     if(!selectedBulkClass) {
@@ -2818,452 +3326,153 @@ function handleExcelFile(file) {
 
             const normalizeHeader = (value = '') => value.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
             const aliasMap = {
-                uid: ['iduid', 'id', 'uid', 'rollno', 'rollnumber'],
-                name: ['name', 'studentname', 'student'],
-                father: ['fathername', 'father', 'parent', 'fatherguardian', 'guardian'],
+                uid: ['iduid', 'id', 'uid', 'rollno', 'rollnumber', 'roll'],
+                name: ['name', 'studentname', 'student', 'fullname', 'nameofstudent'],
+                father: ['fathername', 'father', 'parent', 'fatherguardian', 'guardian', 'fatherguardiansname'],
                 mother: ['mother', 'mothername'],
                 gender: ['gender', 'sex'],
                 status: ['status', 'state'],
-                mobile: ['mobile', 'phone', 'mobileno', 'phonenumber', 'fatherphone', 'fatherphonenumber', 'contact', 'contactno'],
+                mobile: ['mobile', 'phone', 'mobileno', 'phonenumber', 'fatherphone', 'fatherphonenumber', 'contact', 'contactno', 'whatsapp'],
                 motherMobile: ['mothermobile', 'motherphone', 'motherphonenumber'],
-                adm: ['admno', 'admissionno', 'admissionnumber', 'adm', 'admn', 'admno.'],
-                address: ['permanentaddress', 'address', 'permanent', 'addr'],
+                adm: ['admno', 'admissionno', 'admissionnumber', 'adm', 'admn', 'admno.', 'admnumber'],
+                address: ['permanentaddress', 'address', 'permanent', 'addr', 'residentialaddress'],
                 dob: ['dob', 'dateofbirth', 'birthdate', 'birth', 'studentdob', 'dobddmmyyyy', 'dateofbirthddmmyyyy'],
-                admDate: ['admdate', 'dateofadmission', 'admissiondate', 'admnsdate', 'admldate', 'joiningdate', 'admissiondateddmmyyyy', 'admdateddmmyyyy'],
-                adhaar: ['aadhaar', 'adhaar', 'aadharno', 'aadhaarnumber', 'adhaarnumber', 'uidai'],
+                admDate: ['admdate', 'dateofadmission', 'admissiondate', 'admnsdate', 'admldate', 'joiningdate', 'admissiondateddmmyyyy', 'admdateddmmyyyy', 'doj'],
+                adhaar: ['aadhaar', 'adhaar', 'aadharno', 'aadhaarnumber', 'adhaarnumber', 'uidai', 'aadharno.'],
                 samastha: ['samastha', 'samasthaid', 'samasthano', 'regno', 'registrationno']
             };
 
-            // Analyze each row against the 15 standard student fields
-            // Standard fields: 1.Photo, 2.Class, 3.UID, 4.Name*, 5.Father, 6.Mother, 7.Gender*, 8.Adm No, 9.DOB, 10.Adm Date, 11.Status, 12.Aadhaar, 13.Father Mobile, 14.Mother Mobile, 15.Address
-            const existingClassStudents = students.filter(st => String(st.class || '').toUpperCase().trim() === selectedBulkClass);
-            
-            // Build lookup for existing class students
-            // Match can be on Adm No (if present) OR (Name AND (UID OR Father OR Mobile))
-            const findExistingMatch = (candidate) => {
-                const candAdm = String(candidate.adm || '').toUpperCase().trim();
-                const candName = String(candidate.name || '').toUpperCase().trim();
-                const candUid = String(candidate.uid || '').toUpperCase().trim();
-                const candMobile = String(candidate.mobile || '').trim();
-
-                return existingClassStudents.find(exist => {
-                    const existAdm = String(exist.adm || '').toUpperCase().trim();
-                    const existName = String(exist.name || '').toUpperCase().trim();
-                    const existUid = String(exist.uid || '').toUpperCase().trim();
-                    const existMobile = String(exist.mobile || '').trim();
-
-                    if (candAdm && existAdm && candAdm === existAdm) return true;
-                    if (candUid && existUid && candUid === existUid) return true;
-                    if (candName && existName && candName === existName) {
-                        if (candMobile && existMobile && candMobile === existMobile) return true;
-                        if (!candAdm && !existAdm) return true;
-                    }
-                    return false;
+            const detectedHeaders = [];
+            rawData.forEach(row => {
+                Object.keys(row).forEach(k => {
+                    if (!detectedHeaders.includes(k)) detectedHeaders.push(k);
                 });
-            };
+            });
 
-            excelParsedData = rawData.map((row, rowIdx) => {
-                const keys = Object.keys(row);
-                const getVal = (aliases = []) => {
-                    const key = keys.find((col) => {
-                        const norm = normalizeHeader(col);
-                        return aliases.includes(norm) || aliases.some(a => (norm.startsWith(a) && (norm.includes('date') || norm.includes('dob'))));
-                    });
-                    return key ? (row[key] !== undefined && row[key] !== null ? row[key] : '') : '';
-                };
-
-                const rawName = String(getVal(aliasMap.name) || '').trim();
-                const rawDob = getVal(aliasMap.dob);
-                const dobVal = normalizeToIsoDate(rawDob);
-                const rawAdmDate = getVal(aliasMap.admDate);
-                const admDateVal = normalizeToIsoDate(rawAdmDate);
-                const adhaarVal = String(getVal(aliasMap.adhaar) || '').trim();
-                const samasthaVal = String(getVal(aliasMap.samastha) || '').trim();
-                const motherVal = String(getVal(aliasMap.mother) || '').trim();
-                const motherMobileVal = String(getVal(aliasMap.motherMobile) || '').trim();
-                const admVal = String(getVal(aliasMap.adm) || '').toUpperCase().trim();
-                const uidVal = String(getVal(aliasMap.uid) || '').trim();
-                const fatherVal = String(getVal(aliasMap.father) || '').toUpperCase().trim();
-                const mobileVal = String(getVal(aliasMap.mobile) || '').trim();
-                const addressVal = String(getVal(aliasMap.address) || '').trim();
-                const statusVal = normalizeStudentStatus(String(getVal(aliasMap.status) || ''));
-                const genderRaw = String(getVal(aliasMap.gender) || '').toLowerCase().trim();
-                const genderVal = genderRaw.startsWith('f') ? 'Female' : 'Male';
-
-                // Row-level and field-level validation
-                const fieldStatuses = {};
-                const omittedFields = [];
-                const fatalReasons = [];
-
-                // 2. Class (Auto mapped to selected class)
-                fieldStatuses.class = { status: 'valid', val: selectedBulkClass };
-
-                // 4. Student Name (Mandatory)
-                const hasFatalError = !rawName;
-                if (hasFatalError) {
-                    fieldStatuses.name = { status: 'error', val: '', reason: 'Name is mandatory' };
-                    fatalReasons.push('Missing Student Name');
-                } else {
-                    fieldStatuses.name = { status: 'valid', val: rawName.toUpperCase().trim() };
-                }
-
-                // 7. Gender (Mandatory - defaults to Male if blank)
-                if (!genderRaw) {
-                    fieldStatuses.gender = { status: 'blank', val: genderVal, note: 'Defaulted to Male' };
-                } else {
-                    fieldStatuses.gender = { status: 'valid', val: genderVal };
-                }
-
-                // 3. UID
-                fieldStatuses.uid = uidVal ? { status: 'valid', val: uidVal } : { status: 'blank', val: '' };
-
-                // 5. Father Name
-                fieldStatuses.father = fatherVal ? { status: 'valid', val: fatherVal } : { status: 'blank', val: '' };
-
-                // 6. Mother Name
-                fieldStatuses.mother = motherVal ? { status: 'valid', val: motherVal.toUpperCase() } : { status: 'blank', val: '' };
-
-                // 8. Adm No
-                fieldStatuses.adm = admVal ? { status: 'valid', val: admVal } : { status: 'blank', val: '' };
-
-                // 9. DOB (Optional: invalid format is omitted, does NOT block the student)
-                let cleanDob = '';
-                if (rawDob) {
-                    if (dobVal) {
-                        cleanDob = dobVal;
-                        fieldStatuses.dob = { status: 'valid', val: cleanDob };
-                    } else {
-                        fieldStatuses.dob = { status: 'error', val: String(rawDob), reason: 'Invalid date format (will be saved as blank)' };
-                        omittedFields.push('Date of Birth');
-                    }
-                } else {
-                    fieldStatuses.dob = { status: 'blank', val: '' };
-                }
-
-                // 10. Adm Date (Optional: invalid format is omitted, does NOT block the student)
-                let cleanAdmDate = '';
-                if (rawAdmDate) {
-                    if (admDateVal) {
-                        cleanAdmDate = admDateVal;
-                        fieldStatuses.admDate = { status: 'valid', val: cleanAdmDate };
-                    } else {
-                        fieldStatuses.admDate = { status: 'error', val: String(rawAdmDate), reason: 'Invalid date format (will be saved as blank)' };
-                        omittedFields.push('Admission Date');
-                    }
-                } else {
-                    fieldStatuses.admDate = { status: 'blank', val: '' };
-                }
-
-                // 11. Status
-                fieldStatuses.status = { status: 'valid', val: statusVal };
-
-                // 12. Aadhaar (Optional: invalid format is omitted, does NOT block the student)
-                let cleanAdhaar = '';
-                if (adhaarVal) {
-                    const digitsOnly = adhaarVal.replace(/\s+/g, '');
-                    if (/^\d{12}$/.test(digitsOnly)) {
-                        cleanAdhaar = digitsOnly;
-                        fieldStatuses.adhaar = { status: 'valid', val: cleanAdhaar };
-                    } else {
-                        fieldStatuses.adhaar = { status: 'error', val: adhaarVal, reason: 'Invalid Aadhaar format (must be 12 digits, will be saved as blank)' };
-                        omittedFields.push('Aadhaar');
-                    }
-                } else {
-                    fieldStatuses.adhaar = { status: 'blank', val: '' };
-                }
-
-                // 13. Father Mobile (Optional: invalid format is omitted, does NOT block the student)
-                let cleanMobile = '';
-                if (mobileVal) {
-                    const sanitizedMobile = mobileVal.replace(/[\s-]/g, '');
-                    if (/^\+?\d{7,15}$/.test(sanitizedMobile)) {
-                        cleanMobile = sanitizedMobile;
-                        fieldStatuses.mobile = { status: 'valid', val: cleanMobile };
-                    } else {
-                        fieldStatuses.mobile = { status: 'error', val: mobileVal, reason: 'Invalid mobile number (will be saved as blank)' };
-                        omittedFields.push('Father Mobile');
-                    }
-                } else {
-                    fieldStatuses.mobile = { status: 'blank', val: '' };
-                }
-
-                // 14. Mother Mobile (Optional: invalid format is omitted, does NOT block the student)
-                let cleanMotherMobile = '';
-                if (motherMobileVal) {
-                    const sanitizedMotherMobile = motherMobileVal.replace(/[\s-]/g, '');
-                    if (/^\+?\d{7,15}$/.test(sanitizedMotherMobile)) {
-                        cleanMotherMobile = sanitizedMotherMobile;
-                        fieldStatuses.motherMobile = { status: 'valid', val: cleanMotherMobile };
-                    } else {
-                        fieldStatuses.motherMobile = { status: 'error', val: motherMobileVal, reason: 'Invalid mobile number (will be saved as blank)' };
-                        omittedFields.push('Mother Mobile');
-                    }
-                } else {
-                    fieldStatuses.motherMobile = { status: 'blank', val: '' };
-                }
-
-                // 15. Address
-                fieldStatuses.address = addressVal ? { status: 'valid', val: addressVal } : { status: 'blank', val: '' };
-
-                const studentObj = {
-                    rowIdx: rowIdx + 1,
-                    academicYear: activeAcademicYear || currentAcademicYear,
-                    name: rawName ? rawName.toUpperCase().trim() : "",
-                    class: selectedBulkClass,
-                    studentClass: selectedBulkClass,
-                    status: statusVal,
-                    gender: genderVal,
-                    uid: uidVal,
-                    father: fatherVal,
-                    mother: motherVal.toUpperCase(),
-                    mobile: cleanMobile,
-                    motherMobile: cleanMotherMobile,
-                    adm: admVal,
-                    address: addressVal,
-                    dob: cleanDob,
-                    admDate: cleanAdmDate,
-                    adm_date: cleanAdmDate,
-                    adhaar: cleanAdhaar,
-                    samasthaId: samasthaVal,
-                    photo: '',
-                    fieldStatuses,
-                    omittedFields,
-                    hasFatalError,
-                    fatalReasons,
-                    hasOmittedFields: omittedFields.length > 0,
-                    hasErrors: hasFatalError,
-                    profile: {
-                        dob: cleanDob,
-                        address: addressVal,
-                        adhaar: cleanAdhaar,
-                        admNo: admVal,
-                        admDate: cleanAdmDate,
-                        adm_date: cleanAdmDate,
-                        samasthaId: samasthaVal,
-                        photo: '',
-                        uid: uidVal,
-                        father: fatherVal,
-                        mother: motherVal.toUpperCase(),
-                        mobile: cleanMobile,
-                        motherMobile: cleanMotherMobile,
-                        status: statusVal
-                    }
-                };
-
-                const existingMatch = findExistingMatch(studentObj);
-                studentObj.existingMatch = existingMatch || null;
-                studentObj.isDuplicate = !!existingMatch;
-
-                return studentObj;
-            }).filter(s => s.name || s.hasFatalError); // Keep all records that have name or were explicitly submitted
-
-            // Compute diagnostic summary statistics
-            const totalCount = excelParsedData.length;
-            const validStudents = excelParsedData.filter(s => !s.hasFatalError);
-            const completelyValidStudents = excelParsedData.filter(s => !s.hasFatalError && (s.omittedFields?.length || 0) === 0);
-            const fatalRows = excelParsedData.filter(s => s.hasFatalError);
-            const validCount = validStudents.length;
-            const completelyValidCount = completelyValidStudents.length;
-            const fatalCount = fatalRows.length;
-            const totalOmittedFields = validStudents.reduce((acc, s) => acc + (s.omittedFields?.length || 0), 0);
-            const mergeCount = validStudents.filter(s => s.isDuplicate).length;
-
-            const statTotal = document.getElementById('stat-total-records');
-            const statValid = document.getElementById('stat-valid-records');
-            const statIssue = document.getElementById('stat-issue-records');
-            const statMerge = document.getElementById('stat-merge-records');
-            if (statTotal) statTotal.textContent = totalCount;
-            if (statValid) statValid.textContent = completelyValidCount;
-            if (statIssue) {
-                if (fatalCount > 0 && totalOmittedFields > 0) {
-                    statIssue.textContent = `${fatalCount} Fatal (${totalOmittedFields} fields skipped)`;
-                } else if (fatalCount > 0) {
-                    statIssue.textContent = `${fatalCount} Fatal`;
-                } else if (totalOmittedFields > 0) {
-                    statIssue.textContent = `${totalOmittedFields} fields skipped`;
-                } else {
-                    statIssue.textContent = '0';
-                }
-            }
-            if (statMerge) statMerge.textContent = mergeCount;
-
-            // Configure action buttons dynamically based on validation results
-            const startBtn = document.getElementById('start-upload-btn');
-            const startBtnText = document.getElementById('start-upload-btn-text');
-            const skipBtn = document.getElementById('skip-issues-upload-btn');
-            const validOnlyCountSpan = document.getElementById('valid-only-count');
-            const cancelBtn = document.getElementById('cancel-upload-btn');
-
-            if (cancelBtn) cancelBtn.disabled = false;
-
-            if (validCount === 0) {
-                if (startBtn) {
-                    startBtn.disabled = true;
-                    if (startBtnText) startBtnText.textContent = 'Cannot Upload (Missing Names)';
-                }
-                if (skipBtn) {
-                    skipBtn.classList.add('hidden');
-                    skipBtn.disabled = true;
-                }
-            } else {
-                if (startBtn) {
-                    startBtn.disabled = false;
-                    if (startBtnText) {
-                        startBtnText.textContent = `Upload All (${validCount})`;
-                    }
-                }
-                if (skipBtn) {
-                    // Show "Upload Valid Only" option if there are valid records
-                    skipBtn.classList.remove('hidden');
-                    if (validOnlyCountSpan) validOnlyCountSpan.textContent = completelyValidCount;
-                    skipBtn.disabled = completelyValidCount === 0;
-                }
-            }
-
-            // Show or hide duplicate policy container
-            const dupContainer = document.getElementById('duplicate-policy-container');
-            const dupDetectedCount = document.getElementById('duplicate-detected-count');
-            if (dupContainer) {
-                if (mergeCount > 0) {
-                    dupContainer.classList.remove('hidden');
-                    if (dupDetectedCount) dupDetectedCount.textContent = mergeCount;
-                } else {
-                    dupContainer.classList.add('hidden');
-                }
-            }
-
-            // Render Full Dataset Preview Table with color coding
-            const previewContainer = document.getElementById('excel-preview-table-container');
-            if (previewContainer) {
-                if (excelParsedData.length > 0) {
-                    const renderCell = (st, fieldKey, displayVal) => {
-                        const statusObj = st.fieldStatuses?.[fieldKey] || { status: 'valid', val: displayVal };
-                        let bgClass = '';
-                        let titleAttr = '';
-                        
-                        if (statusObj.status === 'error') {
-                            bgClass = 'bg-rose-50 text-rose-900 border-rose-200';
-                            titleAttr = `title="${statusObj.reason || 'Invalid data - will be omitted'}"`;
-                        } else if (statusObj.status === 'blank') {
-                            bgClass = 'bg-amber-50 text-amber-800 italic';
-                            titleAttr = 'title="Blank / Not provided"';
+            const mappedTargets = new Set();
+            excelColumns = detectedHeaders.map((header, idx) => {
+                const norm = normalizeHeader(header);
+                let matchedKey = 'none';
+                for (const [targetKey, aliases] of Object.entries(aliasMap)) {
+                    if (aliases.includes(norm) || aliases.some(a => (norm.startsWith(a) && (norm.includes('date') || norm.includes('dob') || norm.includes('no'))))) {
+                        if (!mappedTargets.has(targetKey)) {
+                            matchedKey = targetKey;
+                            mappedTargets.add(targetKey);
+                            break;
                         }
-                        
-                        let display = '';
-                        if (statusObj.status === 'error') {
-                            const rawVal = (statusObj.val !== undefined && statusObj.val !== null && String(statusObj.val).trim() !== '')
-                                ? String(statusObj.val).trim()
-                                : (displayVal !== undefined && displayVal !== null ? String(displayVal).trim() : '');
-                            
-                            if (rawVal) {
-                                display = `<span class="text-rose-600 font-semibold">${escapeHtml(rawVal)}</span>`;
-                            } else {
-                                display = '<span class="text-rose-600 font-bold italic">Missing *</span>';
-                            }
-                        } else if (statusObj.status === 'blank' || (!displayVal && !statusObj.val)) {
-                            display = '<span class="text-amber-500 font-normal">--</span>';
-                        } else {
-                            const valToShow = (statusObj.val !== undefined && statusObj.val !== null && statusObj.val !== '') 
-                                ? statusObj.val 
-                                : displayVal;
-                            display = escapeHtml(String(valToShow));
-                        }
-                        return `<td class="p-2 border-b border-r border-slate-100 whitespace-nowrap ${bgClass}" ${titleAttr}>${display}</td>`;
-                    };
-
-                    previewContainer.innerHTML = `
-                        <div class="px-3 py-2 bg-slate-100/80 border-b border-slate-200 text-xs font-semibold text-slate-800 flex flex-wrap justify-between items-center gap-2">
-                            <span class="flex items-center gap-2">
-                                <i class="fas fa-table-list text-slate-600"></i>
-                                <span>Complete File Preview (All ${excelParsedData.length} records)</span>
-                            </span>
-                            <span class="text-xs text-slate-500 font-normal">
-                                Scroll horizontally & vertically to inspect all 15 fields
-                            </span>
-                        </div>
-                        <div class="overflow-x-auto max-h-[380px] overflow-y-auto">
-                            <table class="w-full text-xs text-left text-slate-700 border-collapse">
-                                <thead class="bg-slate-100 text-slate-700 font-bold uppercase sticky top-0 z-10 shadow-sm border-b border-slate-300">
-                                    <tr>
-                                        <th class="p-2 border-b border-r bg-slate-100 text-center w-10">#</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">Status</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">Name *</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">Adm No</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">DOB</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">Adm Date</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">Gender *</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">ID/UID</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">Father's Name</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">Mother's Name</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">Father Phone</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">Mother Phone</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">Aadhaar</th>
-                                        <th class="p-2 border-b border-r bg-slate-100">Address</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-100">
-                                    ${excelParsedData.map((s, idx) => {
-                                        let rowBg = 'hover:bg-slate-50';
-                                        let statusBadge = '';
-                                        
-                                        if (s.hasFatalError) {
-                                            rowBg = 'bg-rose-50/50 hover:bg-rose-100/50';
-                                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-200 text-rose-800" title="Missing student name - cannot be imported">FATAL</span>`;
-                                        } else if (s.hasOmittedFields) {
-                                            rowBg = 'bg-amber-50/30 hover:bg-amber-50/60';
-                                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200" title="Valid student (${s.omittedFields.length} invalid field(s) skipped: ${s.omittedFields.join(', ')})">READY (${s.omittedFields.length} SKIPPED)</span>`;
-                                        } else if (s.isDuplicate) {
-                                            rowBg = 'bg-sky-50/50 hover:bg-sky-100/50';
-                                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-200 text-sky-800" title="Matches existing student in this class">EXISTING</span>`;
-                                        } else {
-                                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">READY</span>`;
-                                        }
-
-                                        return `
-                                            <tr class="${rowBg}">
-                                                <td class="p-2 text-center text-slate-400 border-b border-r border-slate-100 font-mono">${idx + 1}</td>
-                                                <td class="p-2 border-b border-r border-slate-100 whitespace-nowrap">${statusBadge}</td>
-                                                ${renderCell(s, 'name', s.name)}
-                                                ${renderCell(s, 'adm', s.adm)}
-                                                ${renderCell(s, 'dob', s.dob)}
-                                                ${renderCell(s, 'admDate', s.admDate)}
-                                                ${renderCell(s, 'gender', s.gender)}
-                                                ${renderCell(s, 'uid', s.uid)}
-                                                ${renderCell(s, 'father', s.father)}
-                                                ${renderCell(s, 'mother', s.mother)}
-                                                ${renderCell(s, 'mobile', s.mobile)}
-                                                ${renderCell(s, 'motherMobile', s.motherMobile)}
-                                                ${renderCell(s, 'adhaar', s.adhaar)}
-                                                ${renderCell(s, 'address', s.address)}
-                                            </tr>
-                                        `;
-                                    }).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-                    previewContainer.classList.remove('hidden');
-                } else {
-                    previewContainer.innerHTML = '';
-                    previewContainer.classList.add('hidden');
+                    }
                 }
-            }
+                return {
+                    id: `col_${idx}`,
+                    header: header,
+                    mappedField: matchedKey
+                };
+            });
+
+            excelWorkingRows = rawData.map(rawRow => {
+                const row = {};
+                excelColumns.forEach(c => {
+                    row[c.id] = rawRow[c.header] !== undefined && rawRow[c.header] !== null ? String(rawRow[c.header]).trim() : '';
+                });
+                return row;
+            });
+
+            isExcelEditMode = false;
+            setExcelEditMode(false);
+            rebuildAllExcelDataAndRender();
 
             document.getElementById('excel-drop-zone').classList.add('hidden');
             document.getElementById('excel-preview-area').classList.remove('hidden');
             document.getElementById('upload-progress-bar').classList.add('hidden');
             document.getElementById('upload-status-text').textContent = "Ready to upload";
-        } catch(err) { 
-            console.error("Error parsing Excel file:", err); 
-            alert("Error reading file: " + (err.message || err)); 
+        } catch(err) {
+            console.error("Error parsing Excel file:", err);
+            alert("Error reading file: " + (err.message || err));
         }
     };
     reader.readAsArrayBuffer(file);
 }
 
+// Table Container delegated events (Dropdown changes, cell edits, keyboard navigation)
+const excelTableContainer = document.getElementById('excel-preview-table-container');
+if (excelTableContainer) {
+    excelTableContainer.addEventListener('change', (e) => {
+        const select = e.target.closest('.excel-col-map-dropdown');
+        if (!select) return;
+        const colId = select.dataset.colId;
+        const newField = select.value;
+        const targetCol = excelColumns.find(c => c.id === colId);
+        if (targetCol) {
+            targetCol.mappedField = newField;
+            rebuildAllExcelDataAndRender();
+        }
+    });
+
+    excelTableContainer.addEventListener('blur', (e) => {
+        const cell = e.target.closest('.excel-cell');
+        if (!cell || !isExcelEditMode) return;
+        const rowIdx = parseInt(cell.dataset.rowIdx, 10);
+        const colId = cell.dataset.colId;
+        if (isNaN(rowIdx) || !colId) return;
+
+        const newText = cell.innerText.trim();
+        if (excelWorkingRows[rowIdx]) {
+            excelWorkingRows[rowIdx][colId] = newText;
+            const extracted = extractRowFields(rowIdx);
+            const selectedBulkClass = (document.getElementById('bulk-upload-class')?.value || '').toUpperCase().trim();
+            const existingClassStudents = students.filter(st => String(st.class || '').toUpperCase().trim() === selectedBulkClass);
+            excelParsedData[rowIdx] = validateAndBuildStudent(extracted, rowIdx, selectedBulkClass, existingClassStudents);
+            updateRowDomAfterEdit(rowIdx);
+        }
+    }, true);
+
+    excelTableContainer.addEventListener('keydown', (e) => {
+        const cell = e.target.closest('.excel-cell');
+        if (!cell || !isExcelEditMode) return;
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const rowIdx = parseInt(cell.dataset.rowIdx, 10);
+            const colId = cell.dataset.colId;
+            const nextCell = document.querySelector(`.excel-cell[data-row-idx="${rowIdx + 1}"][data-col-id="${colId}"]`);
+            if (nextCell) {
+                nextCell.focus();
+            } else {
+                cell.blur();
+            }
+        }
+    });
+
+    excelTableContainer.addEventListener('click', (e) => {
+        const addColBtn = e.target.closest('#excel-add-col-btn');
+        if (!addColBtn) return;
+        const currentlyMapped = new Set(excelColumns.map(c => c.mappedField));
+        const availableFields = EXCEL_SCHEMA_FIELDS.filter(f => f.key !== 'none' && !currentlyMapped.has(f.key));
+        
+        let fieldToChoose = 'none';
+        if (availableFields.length > 0) {
+            fieldToChoose = availableFields[0].key;
+        }
+        const newColId = `col_${Date.now()}`;
+        const newColHeader = availableFields.length > 0 ? availableFields[0].label.replace('*', '').trim() : 'Custom Field';
+        excelColumns.push({
+            id: newColId,
+            header: newColHeader,
+            mappedField: fieldToChoose
+        });
+        excelWorkingRows.forEach(r => {
+            r[newColId] = '';
+        });
+        rebuildAllExcelDataAndRender();
+    });
+}
+
 document.getElementById('cancel-upload-btn').addEventListener('click', () => {
     fileInput.value = '';
     excelParsedData = [];
+    excelWorkingRows = [];
+    excelColumns = [];
+    isExcelEditMode = false;
+    setExcelEditMode(false);
     const previewContainer = document.getElementById('excel-preview-table-container');
     if (previewContainer) {
         previewContainer.innerHTML = '';
