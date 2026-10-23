@@ -1,183 +1,135 @@
-# Granular Data Deletion & System Purge Architecture
+# 3-Column Responsive Notification Grid for Desktop & Laptop
 
-A robust, enterprise-grade data purge capability integrated within the **Admin Security & Settings** page (`#security-settings-page`), allowing the Super Admin to selectively wipe specific functional modules or perform a complete institutional reset while permanently protecting Super Admin credentials and root access.
+Transform the public notifications section on the index page from a stretched single-column layout into a clean, 3-column responsive grid on desktop and laptop displays, a 2-column layout on tablets, and a single column on mobile, with smooth internal container scrolling.
 
 ---
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The following architectural parameters were confirmed via clarification:
-> - **Authentication & Authorization**: Dual-factor security verification requiring the Super Admin's current password (re-authenticated via Firebase Auth) plus typing a strict confirmation phrase (`DELETE PERMANENTLY`).
-> - **Pre-Deletion Backup**: Optional backup prompt with a single-click action to export an offline JSON snapshot before any records are permanently erased.
-> - **Category Organization**: Structured "Danger Zone" in Security Settings featuring a **Select All** master toggle alongside individual granular checkboxes for each module.
-> - **Super Admin Protection Invariant**: Root Super Admin credentials, authentication documents (`settings/adminAuth`), and current active administrative session are strictly immutable and protected against deletion.
+> The following parameters were confirmed by the user in Phase 1 clarification:
+> - **Desktop & Laptop Layout**: Exactly 3 columns on desktop (`>= 1024px`), 2 columns on tablet (`640px - 1023px`), and 1 column on mobile (`< 640px`).
+> - **Height & Scrolling Behavior**: 3-column grid housed within a dedicated scrollable container with custom smooth scrollbar when multiple notices are posted.
+> - **Language Requirement**: All user communication remains in Malayalam; all application UI labels, dates, and buttons remain in English only.
 
 ---
 
 ## 1. Overview & Core Concept
 
 ### What It Does
-Provides an authorized, granular deletion engine in the Admin Portal under **Security Settings / Danger Zone**. An administrator can target specific data categories (e.g., clearing only student records, wiping fee payment histories, or clearing exam results) or perform a full system reset.
+Re-architects `#notices-list` on the public landing page (`index.html`) so notifications appear in a structured **3-column card grid** on desktop and laptop displays instead of stretching horizontally across the full screen width.
 
 ### Target Audience & Persona
-- **Solely Super Admin**: Standard staff, operations admins, viewers, and result operators are strictly prohibited from viewing or triggering this interface (`security.manage` permission required, further restricted to `currentAdminRole === 'super_admin'`).
+- Parents, students, and institutional visitors viewing circulars, exam announcements, and notices on wide screens (desktop monitors, laptops, large tablets).
 
 ### Key Value
-- Enables seasonal database resets, academic turnover, and test data cleanup without manually wiping collections in the Firebase Console or risking institutional lockout.
+- Eliminates excessive horizontal eye-travel caused by full-width single-line notice cards on wide screens.
+- Enhances visual density, allowing users to scan 6 notices in two rows at a glance without extensive scrolling.
 
 ---
 
 ## 2. User Experience & Visual Design
 
-### UI Layout: "Danger Zone" in Security Settings
-A dedicated card positioned at the bottom of `#security-settings-page` styled with a subtle crimson border (`border-rose-300 bg-rose-50/20`), distinct from routine operations:
+### Responsive Grid Breakpoints & Spatial Composition
 
 ```
+[ DESKTOP / LAPTOP (>= 1024px) ]
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ ⚠️  Institutional Data Purge & Reset (Danger Zone)       [Super Admin Only] │
-│ Permanent data removal tool. Select categories to delete.                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  [✓] Select All Categories                                                  │
-│                                                                             │
-│  ┌─────────────────────────────┐  ┌─────────────────────────────┐           │
-│  │ [ ] Students & Enrollments  │  │ [ ] Fee Payments & History  │           │
-│  │     Active, Alumni, TC logs │  │     Collection records      │           │
-│  └─────────────────────────────┘  └─────────────────────────────┘           │
-│  ┌─────────────────────────────┐  ┌─────────────────────────────┐           │
-│  │ [ ] Academic Results        │  │ [ ] Staff & Faculty Records │           │
-│  │     Marks, exams & schemas  │  │     Excludes Super Admin    │           │
-│  └─────────────────────────────┘  └─────────────────────────────┘           │
-│  ┌─────────────────────────────┐  ┌─────────────────────────────┐           │
-│  │ [ ] Student Groups (Sibling)│  │ [ ] Website Notices & Gallery│          │
-│  │     Family discount links   │  │     Public circulars & media│           │
-│  └─────────────────────────────┘  └─────────────────────────────┘           │
-│  ┌─────────────────────────────┐  ┌─────────────────────────────┐           │
-│  │ [ ] Academic Years Ladder   │  │ [ ] System Audit Trail Logs │           │
-│  │     Resets custom years     │  │     Leaves audit checkpoint │           │
-│  └─────────────────────────────┘  └─────────────────────────────┘           │
-│                                                                             │
-│  [Download JSON Backup]                     [Purge Selected Data (Red Btn)] │
+│ NOTIFICATIONS                                                               │
+│ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ │
+│ │ Notice Card 1        │ │ Notice Card 2        │ │ Notice Card 3        │ │
+│ │ [Pinned] Annual Day  │ │ Fee Revision 2026    │ │ Vacation Notice      │ │
+│ │ [Image Preview]      │ │ Text description...  │ │ Text description...  │ │
+│ │ Oct 24, 2026  [View] │ │ Oct 22, 2026  [View] │ │ Oct 20, 2026  [View] │ │
+│ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ │
+│ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ │
+│ │ Notice Card 4        │ │ Notice Card 5        │ │ Notice Card 6        │ │
+│ │ Result Announcement  │ │ Admission Open       │ │ Sports Meet Circular │ │
+│ │ Text description...  │ │ [Image Preview]      │ │ Text description...  │ │
+│ │ Oct 18, 2026  [View] │ │ Oct 15, 2026  [View] │ │ Oct 12, 2026  [View] │ │
+│ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ │
+│ (Scrollable container if > 6 notices exist)                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
+
+[ TABLET (640px - 1023px) ]
+┌─────────────────────────────────────────────────────────┐
+│ ┌───────────────────────────┐ ┌───────────────────────┐ │
+│ │ Notice Card 1             │ │ Notice Card 2         │ │
+│ └───────────────────────────┘ └───────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+
+[ MOBILE (< 640px) ]
+┌──────────────────────────────────────┐
+│ ┌──────────────────────────────────┐ │
+│ │ Notice Card 1                    │ │
+│ └──────────────────────────────────┘ │
+└──────────────────────────────────────┘
 ```
 
-### Deletion Execution Workflow
-
-```
-[Click "Purge Selected Data"]
-             │
-             ▼
-┌──────────────────────────────────────────────┐
-│ Prompt: "Download Backup Before Proceeding?" │
-│ [Download Backup & Proceed]  [Skip Backup]   │
-└──────────────────────────────────────────────┘
-             │
-             ▼
-┌───────────────────────────────────────────────────────────────────────────┐
-│ ⚠️  Confirm Permanent Data Deletion                                       │
-│                                                                           │
-│ You are about to permanently delete:                                      │
-│ • Students & Enrollments (124 records)                                    │
-│ • Fee Payments & History (480 records)                                    │
-│                                                                           │
-│ Super Admin Account: admin@institute.com (Protected - Will NOT be deleted)│
-│                                                                           │
-│ 1. Current Super Admin Password:                                          │
-│    [••••••••••••••••••••••••]                                             │
-│                                                                           │
-│ 2. Type "DELETE PERMANENTLY" to confirm:                                  │
-│    [DELETE PERMANENTLY      ]                                             │
-│                                                                           │
-│ [Cancel]                              [Confirm & Execute Permanent Delete]│
-└───────────────────────────────────────────────────────────────────────────┘
-             │
-             ▼
-┌───────────────────────────────────────────────────────────────────────────┐
-│ Deletion in Progress...                                                   │
-│ [████████████████░░░░░░] 60%                                              │
-│ Deleting payments in batches of 400...                                    │
-└───────────────────────────────────────────────────────────────────────────┘
-             │
-             ▼
-[Audit Checkpoint Recorded] -> [In-Memory State Cleared] -> [Success Toast]
-```
+### Card Layout & Aesthetic Polish
+- **Card Anatomy**:
+  - `Header`: Clean typography, pinned icon indicator (`fa-thumbtack`), notice title.
+  - `Image Box`: Fixed aspect-ratio image container with rounded corners and subtle border.
+  - `Body`: Line-clamped preview (3-4 lines) with link resolution.
+  - `Footer`: `margin-top: auto` so date and action button (`Expand`/`View`) are anchored uniformly at the bottom regardless of varying card text heights.
+- **Scroll Container**:
+  - Sleek custom scrollbar (`::-webkit-scrollbar` with subtle track).
+  - Max height adjusted to display ~2 complete rows (approx. 560px–600px) comfortably on desktop before scrolling engages.
 
 ---
 
-## 3. Granular Modules & Firestore Collections Mapping
+## 3. Key Technical Decisions & Trade-Offs
 
-| Module Name | Targeted Firestore Collections & Documents | Preservation Rules |
-| :--- | :--- | :--- |
-| **Students & Enrollments** | `students` collection, `academicYears/{yearId}/enrollments` subcollections | Photo data deleted with documents. |
-| **Fee Payments & Collections** | `payments` collection | All transaction receipts and fee records wiped. |
-| **Academic Results** | `results`, `examResults`, `resultSchemas` collections | All published and draft marks wiped. |
-| **Staff & Faculty** | `staff` collection, `staffAccess` collection | **Super Admin document (`settings/adminAuth`) is completely skipped and preserved.** |
-| **Student Groups** | `studentGroups` collection | Sibling linking and group fee overrides wiped. |
-| **Website Content & Directory** | `settings/content` (notices, gallery), `publicDirectory` collection | Resets public circulars, event images, and directory entries. |
-| **Academic Years** | `settings/academicYears` | Resets custom years; initializes clean default active year. |
-| **Audit Trail Logs** | `auditLogs` collection | Wipes prior entries; creates single new checkpoint entry recording purge details. |
+- **CSS Grid over Flexbox**:
+  - *Chosen Approach*: `display: grid; grid-template-columns: repeat(3, 1fr);` on desktop.
+  - *Why*: Guarantees strictly uniform 3 equal-width columns without awkward wrapping or uneven spacing.
+- **Dynamic Viewport Height Adaptation**:
+  - *Chosen Approach*: Update `fitNoticeViewportForFourCards` in `scripts/pages/index-page.js` to account for multi-column grid math (measuring row heights rather than simply summing single cards).
+  - *Why*: Ensures the scroll container height adapts correctly whether on mobile (1 col), tablet (2 cols), or desktop (3 cols).
 
 ---
 
-## 4. Technical Architecture & Safety Implementation
+## 4. Technical Architecture & File Modifications
 
-### A. Batch Deletion Primitive (Avoiding 500-Op Firestore Limits)
-```javascript
-// Safely chunk collection deletes into 400-op atomic batches
-async function purgeCollectionInBatches(collectionPath) {
-    const snap = await getDocs(collection(db, collectionPath));
-    const allRefs = snap.docs.map(d => d.ref);
-    const BATCH_SIZE = 400;
-    for (let i = 0; i < allRefs.length; i += BATCH_SIZE) {
-        const batch = writeBatch(db);
-        allRefs.slice(i, i + BATCH_SIZE).forEach(ref => batch.delete(ref));
-        await batch.commit();
-    }
-    return allRefs.length;
-}
-```
-
-### B. Super Admin Password Re-Authentication
-Before executing any batch write, the system re-authenticates the current Super Admin credential:
-```javascript
-const credential = EmailAuthProvider.credential(auth.currentUser.email, enteredPassword);
-await reauthenticateWithCredential(auth.currentUser, credential);
-```
-If the password fails or the entered phrase does not match `DELETE PERMANENTLY`, execution terminates immediately.
-
-### C. State Refresh & Audit Trail
-Following completion:
-1. An audit event `data.purge` is committed to `${BASE_PATH}/auditLogs` recording:
-   - Admin email & timestamp
-   - Array of purged categories
-   - Total records deleted per category
-2. Local arrays (`students`, `allPayments`, `studentGroups`, `allStaff`, etc.) are reset to clean zero-state.
-3. Relevant dashboard metrics and views update immediately without full page reloads.
+### Files to Modify
+1. **`styles/main.css`**:
+   - Update `.notice-grid` to implement responsive media queries:
+     - Base: 1 column (`grid-template-columns: 1fr; gap: 14px;`)
+     - `@media (min-width: 640px)`: 2 columns (`grid-template-columns: repeat(2, 1fr); gap: 16px;`)
+     - `@media (min-width: 1024px)`: 3 columns (`grid-template-columns: repeat(3, 1fr); gap: 20px;`)
+   - Update `.notice-card`:
+     - Set `display: flex; flex-direction: column; justify-content: space-between; height: 100%;`
+     - Card footer anchored to bottom (`margin-top: auto;`)
+   - Refine `.notice-grid-scroll`:
+     - Responsive max-height limits and sleek scrollbar styling.
+2. **`scripts/pages/index-page.js`**:
+   - Refine `fitNoticeViewportForFourCards` helper to compute row-based height for responsive multi-column states instead of a naive vertical sum of 4 items.
 
 ---
 
 ## 5. Testing & Verification Plan
 
-1. **Permission Check**: Verify that users logged in with `operations_admin`, `finance_admin`, or `viewer` cannot see or interact with the Danger Zone purge card.
-2. **Super Admin Preservation**: Perform a test purge selecting "Select All" and verify:
-   - Super admin login remains valid in Firebase Auth.
-   - `settings/adminAuth` remains untouched.
-   - User does not get logged out or stranded without admin credentials.
-3. **Password Validation Test**: Attempt purge with an incorrect password -> Expect error message and no database mutations.
-4. **Phrase Verification Test**: Attempt purge with typos in confirmation phrase -> Verify execute button remains disabled.
-5. **Partial / Granular Selection Test**: Select only "Academic Results" -> Verify students and payments remain 100% intact while result collections are cleared.
-6. **Backup Test**: Click "Download Backup & Proceed" -> Verify complete `.json` file downloads before deletion begins.
+1. **Desktop Test (>= 1024px)**:
+   - Verify notices appear in exactly 3 columns side-by-side.
+   - Verify card footers and buttons align evenly across rows.
+2. **Tablet Test (768px - 1023px)**:
+   - Verify notices transition smoothly to 2 columns.
+3. **Mobile Test (< 640px)**:
+   - Verify notices remain single column without horizontal overflows.
+4. **Scrolling Test**:
+   - Verify that when > 6 notices are present, vertical scrolling operates smoothly within the container.
+5. **Notice Modal Interaction**:
+   - Verify that clicking "Expand", "View", or notice images continues to open `#notice-modal` properly.
+6. **Build & Lint Verification**:
+   - Run `compile_applet` and `lint_applet` to confirm zero regression.
 
 ---
 
 ## 6. Implementation Status & Verification Results
 
-- [x] **Danger Zone UI in `#security-settings-page`**: Added in `/admin.html` with category checkboxes, master "Select All" toggle, live selection counter badge, and Super Admin badge.
-- [x] **Pre-Purge Backup Modal**: Added `#purge-backup-modal` allowing optional JSON snapshot export before deletion.
-- [x] **Dual-Factor Confirmation Modal**: Added `#purge-confirm-modal` requiring live Super Admin password re-authentication via `reauthenticateWithCredential` and typing `DELETE PERMANENTLY`.
-- [x] **Real-Time Progress Modal**: Added `#purge-progress-modal` displaying transaction progress bar, percentage, live execution log stream, and final completion confirmation.
-- [x] **Purge Controller & Batch Logic**: Implemented in `/scripts/pages/admin-page.js` with 400-doc transactional chunking (below Firestore's 500 limit).
-- [x] **Super Admin Invariant Protection**: Guaranteed root preservation for `${BASE_PATH}/settings/${ADMIN_AUTH_DOC_ID}`, `auth.currentUser`, and Super Admin access credentials.
-- [x] **Audit Checkpoint & Memory Reset**: Writes single checkpoint to `${BASE_PATH}/auditLogs` upon purge and refreshes all active view components.
-- [x] **Compilation & Lint Verification**: Ran `compile_applet` and `lint_applet` (`tsc --noEmit`); both passed with 0 errors.
+- [x] **Responsive 3-Column Grid**: Configured in `styles/main.css` (`@media (min-width: 1024px) { grid-template-columns: repeat(3, 1fr); }`, 2 columns on tablet, 1 column on mobile).
+- [x] **Card Anatomy & Unified Bottom Alignment**: Updated `.notice-card` with flexbox column layout and `margin-top: auto` for `.notice-footer`, ensuring all cards in each row align their dates and "View" / "Expand" buttons at the same baseline.
+- [x] **Dynamic Scroll Container & Height Adaptation**: Updated `fitNoticeViewportForFourCards` in `scripts/pages/index-page.js` to compute grid row heights dynamically, providing smooth scrolling for large sets of circulars.
+- [x] **Custom Scrollbar Aesthetics**: Styled `.notice-grid-scroll::-webkit-scrollbar` with rounded thumb and unobtrusive track.
+- [x] **Compilation & Lint Verification**: Checked with `compile_applet` and `lint_applet` (`tsc --noEmit`) - both succeeded with 0 errors.
 

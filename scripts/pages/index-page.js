@@ -498,10 +498,20 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                 noticeListEl.style.maxHeight = '';
                 return;
             }
-            const visibleCards = cards.slice(0, 4);
-            const totalHeight = visibleCards.reduce((sum, card) => sum + card.offsetHeight, 0);
-            const gaps = Math.max(0, visibleCards.length - 1) * 12;
-            noticeListEl.style.maxHeight = `${totalHeight + gaps + 8}px`;
+            const width = window.innerWidth;
+            const cols = width >= 1024 ? 3 : (width >= 640 ? 2 : 1);
+            const maxRowsToFit = cols === 1 ? Math.min(4, cards.length) : Math.min(2, Math.ceil(cards.length / cols));
+
+            let totalHeight = 0;
+            for (let r = 0; r < maxRowsToFit; r++) {
+                const rowCards = cards.slice(r * cols, (r + 1) * cols);
+                if (!rowCards.length) break;
+                const maxRowHeight = Math.max(...rowCards.map(c => c.offsetHeight || 0));
+                totalHeight += maxRowHeight;
+            }
+            const gapSize = cols >= 3 ? 20 : (cols === 2 ? 16 : 14);
+            const gaps = Math.max(0, maxRowsToFit - 1) * gapSize;
+            noticeListEl.style.maxHeight = `${totalHeight + gaps + 12}px`;
         };
         window.addEventListener('resize', fitNoticeViewportForFourCards);
 
@@ -589,9 +599,11 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                                 const hasImage = Boolean(notice.image);
                                 return `
                                 <article class="notice-card">
-                                    ${hasHeading ? `<h4 class="notice-title">${notice.pinned ? '<i class="fas fa-thumbtack text-amber-500 mr-1" title="Pinned"></i>' : ''}${escapeHtml(notice.heading)}</h4>` : (notice.pinned ? `<div class="text-xs font-bold text-amber-600 flex items-center justify-center gap-1"><i class="fas fa-thumbtack"></i> Pinned Notice</div>` : '')}
-                                    ${hasImage ? `<div class="notice-image-wrap cursor-pointer rounded-xl overflow-hidden border border-slate-100 bg-slate-50 flex justify-center" data-notice-card-img="1" data-notice-index="${index}"><img src="${notice.image}" alt="${escapeHtml(notice.heading || 'Notification image')}" class="max-h-72 w-auto object-contain" loading="lazy"></div>` : ''}
-                                    ${hasText ? `<p class="notice-body ${longNotice ? 'notice-preview-clamp' : ''}">${renderNoticeTextWithLinks(notice.text, 25)}</p>` : ''}
+                                    <div class="notice-card-content">
+                                        ${hasHeading ? `<h4 class="notice-title">${notice.pinned ? '<i class="fas fa-thumbtack text-amber-500 mr-1" title="Pinned"></i>' : ''}${escapeHtml(notice.heading)}</h4>` : (notice.pinned ? `<div class="text-xs font-bold text-amber-600 flex items-center justify-center gap-1"><i class="fas fa-thumbtack"></i> Pinned Notice</div>` : '')}
+                                        ${hasImage ? `<div class="notice-image-wrap cursor-pointer" data-notice-card-img="1" data-notice-index="${index}"><img src="${notice.image}" alt="${escapeHtml(notice.heading || 'Notification image')}" loading="lazy"></div>` : ''}
+                                        ${hasText ? `<p class="notice-body ${longNotice ? 'notice-preview-clamp' : ''}">${renderNoticeTextWithLinks(notice.text, 25)}</p>` : ''}
+                                    </div>
                                     <div class="notice-footer">
                                         <span class="notice-date"><i class="far fa-calendar-alt"></i> ${escapeHtml(notice.date || 'Date unavailable')}</span>
                                         ${(longNotice || hasImage) ? `<button type="button" class="notice-expand-btn" data-notice-index="${index}">${longNotice ? 'Expand' : 'View'}</button>` : ''}
