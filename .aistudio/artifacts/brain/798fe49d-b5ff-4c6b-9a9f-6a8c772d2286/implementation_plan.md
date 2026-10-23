@@ -1,6 +1,6 @@
-# 3-Column Responsive Notification Grid for Desktop & Laptop
+# Responsive 4-Column Gallery Grid for Desktop & Laptop
 
-Transform the public notifications section on the index page from a stretched single-column layout into a clean, 3-column responsive grid on desktop and laptop displays, a 2-column layout on tablets, and a single column on mobile, with smooth internal container scrolling.
+Transform the public gallery on `index.html` from a cramped mobile-style horizontal swipe strip into an open, modern responsive photo grid with 4 columns on desktop/laptop displays, 3 columns on tablets, and 2 columns on mobile, complete with smooth hover zoom animations and full-screen lightbox viewing.
 
 ---
 
@@ -8,84 +8,79 @@ Transform the public notifications section on the index page from a stretched si
 
 > [!IMPORTANT]
 > The following parameters were confirmed by the user in Phase 1 clarification:
-> - **Desktop & Laptop Layout**: Exactly 3 columns on desktop (`>= 1024px`), 2 columns on tablet (`640px - 1023px`), and 1 column on mobile (`< 640px`).
-> - **Height & Scrolling Behavior**: 3-column grid housed within a dedicated scrollable container with custom smooth scrollbar when multiple notices are posted.
-> - **Language Requirement**: All user communication remains in Malayalam; all application UI labels, dates, and buttons remain in English only.
+> - **Grid Breakpoints**: Exactly **4 columns on desktop/laptop** (`>= 1024px`), **3 columns on tablet** (`640px - 1023px`), and **2 columns on mobile** (`< 640px`).
+> - **Display Mode**: **Full responsive grid** displaying all institutional photos with subtle hover zoom effects (replacing the cramped horizontal scrolling strip).
+> - **Interaction**: Clicking any gallery thumbnail opens the full-screen interactive lightbox modal (`#img-modal`) with previous/next slide navigation.
+> - **Language Requirement**: All user communications in Malayalam; all UI labels and captions in English only.
 
 ---
 
 ## 1. Overview & Core Concept
 
 ### What It Does
-Re-architects `#notices-list` on the public landing page (`index.html`) so notifications appear in a structured **3-column card grid** on desktop and laptop displays instead of stretching horizontally across the full screen width.
+Replaces the narrow, 4-row horizontal swipe carousel (`.gallery-swipe-container`) with a clean, fluid **4-column responsive photo showcase** on desktop and laptop screens.
 
 ### Target Audience & Persona
-- Parents, students, and institutional visitors viewing circulars, exam announcements, and notices on wide screens (desktop monitors, laptops, large tablets).
+- Visitors, alumni, parents, and students viewing institutional event photos, celebrations, campus moments, and awards on computers, laptops, and tablets.
 
 ### Key Value
-- Eliminates excessive horizontal eye-travel caused by full-width single-line notice cards on wide screens.
-- Enhances visual density, allowing users to scan 6 notices in two rows at a glance without extensive scrolling.
+- Eliminates awkward horizontal scrolling and tiny 160px thumbnails on large screens.
+- Displays campus photographs with proper aspect ratios, crisp image rendering, and high-fidelity micro-interactions.
 
 ---
 
 ## 2. User Experience & Visual Design
 
-### Responsive Grid Breakpoints & Spatial Composition
+### Responsive Grid Layout Architecture
 
 ```
-[ DESKTOP / LAPTOP (>= 1024px) ]
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ NOTIFICATIONS                                                               │
-│ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ │
-│ │ Notice Card 1        │ │ Notice Card 2        │ │ Notice Card 3        │ │
-│ │ [Pinned] Annual Day  │ │ Fee Revision 2026    │ │ Vacation Notice      │ │
-│ │ [Image Preview]      │ │ Text description...  │ │ Text description...  │ │
-│ │ Oct 24, 2026  [View] │ │ Oct 22, 2026  [View] │ │ Oct 20, 2026  [View] │ │
-│ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ │
-│ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ │
-│ │ Notice Card 4        │ │ Notice Card 5        │ │ Notice Card 6        │ │
-│ │ Result Announcement  │ │ Admission Open       │ │ Sports Meet Circular │ │
-│ │ Text description...  │ │ [Image Preview]      │ │ Text description...  │ │
-│ │ Oct 18, 2026  [View] │ │ Oct 15, 2026  [View] │ │ Oct 12, 2026  [View] │ │
-│ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ │
-│ (Scrollable container if > 6 notices exist)                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
+[ DESKTOP / LAPTOP (>= 1024px) - 4 COLUMNS ]
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ GALLERY                                                                         │
+│ ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│ │ Photo 1      │  │ Photo 2      │  │ Photo 3      │  │ Photo 4      │          │
+│ │ [Hover Zoom] │  │              │  │              │  │              │          │
+│ └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘          │
+│ ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│ │ Photo 5      │  │ Photo 6      │  │ Photo 7      │  │ Photo 8      │          │
+│ └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘          │
+│ (All photos displayed in fluid grid with smooth hover elevation & lightbox)     │
+└─────────────────────────────────────────────────────────────────────────────────┘
 
-[ TABLET (640px - 1023px) ]
-┌─────────────────────────────────────────────────────────┐
-│ ┌───────────────────────────┐ ┌───────────────────────┐ │
-│ │ Notice Card 1             │ │ Notice Card 2         │ │
-│ └───────────────────────────┘ └───────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
+[ TABLET (640px - 1023px) - 3 COLUMNS ]
+┌─────────────────────────────────────────────────────────────┐
+│ ┌────────────────┐  ┌────────────────┐  ┌────────────────┐  │
+│ │ Photo 1        │  │ Photo 2        │  │ Photo 3        │  │
+│ └────────────────┘  └────────────────┘  └────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
 
-[ MOBILE (< 640px) ]
-┌──────────────────────────────────────┐
-│ ┌──────────────────────────────────┐ │
-│ │ Notice Card 1                    │ │
-│ └──────────────────────────────────┘ │
-└──────────────────────────────────────┘
+[ MOBILE (< 640px) - 2 COLUMNS ]
+┌───────────────────────────────────────────┐
+│ ┌─────────────────────┐  ┌──────────────┐ │
+│ │ Photo 1             │  │ Photo 2      │ │
+│ └─────────────────────┘  └──────────────┘ │
+└───────────────────────────────────────────┘
 ```
 
-### Card Layout & Aesthetic Polish
-- **Card Anatomy**:
-  - `Header`: Clean typography, pinned icon indicator (`fa-thumbtack`), notice title.
-  - `Image Box`: Fixed aspect-ratio image container with rounded corners and subtle border.
-  - `Body`: Line-clamped preview (3-4 lines) with link resolution.
-  - `Footer`: `margin-top: auto` so date and action button (`Expand`/`View`) are anchored uniformly at the bottom regardless of varying card text heights.
-- **Scroll Container**:
-  - Sleek custom scrollbar (`::-webkit-scrollbar` with subtle track).
-  - Max height adjusted to display ~2 complete rows (approx. 560px–600px) comfortably on desktop before scrolling engages.
+### Visual Polish & Motion Design
+- **Card Ratio & Sizing**: Consistent `aspect-ratio: 4 / 3` across all tiles, providing optimal framing for both landscape and event photography.
+- **Surface & Elevation**:
+  - Base: `background: #f1f5f9; border-radius: 14px; border: 1px solid #f1f5f9; box-shadow: 0 4px 15px rgba(0,0,0,0.03);`
+  - Hover: Elevation via `box-shadow: 0 14px 28px rgba(0,0,0,0.1); transform: translateY(-3px);`
+  - Image transition: `transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);` scaling to `1.06` on hover.
+- **Lightbox Navigation**:
+  - Clicking any card triggers `#img-modal` displaying the high-res image with left/right circular navigation buttons and backdrop blur.
 
 ---
 
 ## 3. Key Technical Decisions & Trade-Offs
 
-- **CSS Grid over Flexbox**:
-  - *Chosen Approach*: `display: grid; grid-template-columns: repeat(3, 1fr);` on desktop.
-  - *Why*: Guarantees strictly uniform 3 equal-width columns without awkward wrapping or uneven spacing.
-- **Dynamic Viewport Height Adaptation**:
-  - *Chosen Approach*: Update `fitNoticeViewportForFourCards` in `scripts/pages/index-page.js` to account for multi-column grid math (measuring row heights rather than simply summing single cards).
-  - *Why*: Ensures the scroll container height adapts correctly whether on mobile (1 col), tablet (2 cols), or desktop (3 cols).
+- **Standard Vertical Grid vs. Horizontal Swipe Strip**:
+  - *Chosen Approach*: Fully vertical responsive grid on desktop/tablets instead of horizontal swipe overflow.
+  - *Why*: Modern institutional websites present media catalogs in natural page-flowing grids; horizontal swipe is suited only for cramped touch screens.
+- **Aspect Ratio Locking (`aspect-ratio: 4 / 3`)**:
+  - *Chosen Approach*: Fixed ratio with `object-fit: cover`.
+  - *Why*: Prevents layout shifts (CLS) and irregular patchwork gaps when images have varying raw resolutions.
 
 ---
 
@@ -93,43 +88,43 @@ Re-architects `#notices-list` on the public landing page (`index.html`) so notif
 
 ### Files to Modify
 1. **`styles/main.css`**:
-   - Update `.notice-grid` to implement responsive media queries:
-     - Base: 1 column (`grid-template-columns: 1fr; gap: 14px;`)
-     - `@media (min-width: 640px)`: 2 columns (`grid-template-columns: repeat(2, 1fr); gap: 16px;`)
-     - `@media (min-width: 1024px)`: 3 columns (`grid-template-columns: repeat(3, 1fr); gap: 20px;`)
-   - Update `.notice-card`:
-     - Set `display: flex; flex-direction: column; justify-content: space-between; height: 100%;`
-     - Card footer anchored to bottom (`margin-top: auto;`)
-   - Refine `.notice-grid-scroll`:
-     - Responsive max-height limits and sleek scrollbar styling.
-2. **`scripts/pages/index-page.js`**:
-   - Refine `fitNoticeViewportForFourCards` helper to compute row-based height for responsive multi-column states instead of a naive vertical sum of 4 items.
+   - Modernize `.gallery-swipe-container` (or add `.gallery-grid`):
+     - Mobile: `display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;`
+     - Tablet (`@media (min-width: 640px)`): `grid-template-columns: repeat(3, 1fr); gap: 14px;`
+     - Desktop (`@media (min-width: 1024px)`): `grid-template-columns: repeat(4, 1fr); gap: 18px;`
+   - Style `.gallery-item`:
+     - `aspect-ratio: 4 / 3; width: 100%; border-radius: 14px; overflow: hidden; position: relative;`
+     - Smooth hover scale `transform: scale(1.06);` on child `img`.
+   - Ensure `#gallery-container.container` on desktop has `max-width: 1120px` matching the notifications section.
+2. **`index.html`**:
+   - Ensure the gallery container markup supports the updated grid class.
+3. **`scripts/pages/index-page.js`**:
+   - Verify that image cards in `#gallery-list` render with proper accessibility attributes (`alt`, `loading="lazy"`), index tracking, and lightbox click delegation.
 
 ---
 
 ## 5. Testing & Verification Plan
 
-1. **Desktop Test (>= 1024px)**:
-   - Verify notices appear in exactly 3 columns side-by-side.
-   - Verify card footers and buttons align evenly across rows.
-2. **Tablet Test (768px - 1023px)**:
-   - Verify notices transition smoothly to 2 columns.
+1. **Desktop / Laptop Test (>= 1024px)**:
+   - Verify photos appear in a pristine 4-column layout with 18px uniform gaps.
+   - Verify images fill each tile without distortion.
+2. **Tablet Test (640px - 1023px)**:
+   - Verify grid reflows automatically to 3 columns.
 3. **Mobile Test (< 640px)**:
-   - Verify notices remain single column without horizontal overflows.
-4. **Scrolling Test**:
-   - Verify that when > 6 notices are present, vertical scrolling operates smoothly within the container.
-5. **Notice Modal Interaction**:
-   - Verify that clicking "Expand", "View", or notice images continues to open `#notice-modal` properly.
-6. **Build & Lint Verification**:
-   - Run `compile_applet` and `lint_applet` to confirm zero regression.
+   - Verify grid reflows cleanly to 2 columns without horizontal overflow.
+4. **Lightbox Test**:
+   - Click on various gallery items to verify the full-screen image preview, next/prev arrow controls, and close handler operate smoothly.
+5. **Compilation & Lint Verification**:
+   - Execute `compile_applet` and `lint_applet` to confirm zero regression.
 
 ---
 
 ## 6. Implementation Status & Verification Results
 
-- [x] **Responsive 3-Column Grid**: Configured in `styles/main.css` (`@media (min-width: 1024px) { grid-template-columns: repeat(3, 1fr); }`, 2 columns on tablet, 1 column on mobile).
-- [x] **Card Anatomy & Unified Bottom Alignment**: Updated `.notice-card` with flexbox column layout and `margin-top: auto` for `.notice-footer`, ensuring all cards in each row align their dates and "View" / "Expand" buttons at the same baseline.
-- [x] **Dynamic Scroll Container & Height Adaptation**: Updated `fitNoticeViewportForFourCards` in `scripts/pages/index-page.js` to compute grid row heights dynamically, providing smooth scrolling for large sets of circulars.
-- [x] **Custom Scrollbar Aesthetics**: Styled `.notice-grid-scroll::-webkit-scrollbar` with rounded thumb and unobtrusive track.
-- [x] **Compilation & Lint Verification**: Checked with `compile_applet` and `lint_applet` (`tsc --noEmit`) - both succeeded with 0 errors.
+- [x] **Responsive 4-Column Grid Architecture**: Updated in `styles/main.css` (`@media (min-width: 1024px) { grid-template-columns: repeat(4, 1fr); gap: 20px; }`, 3 columns on tablet, 2 columns on mobile).
+- [x] **Standard Aspect Ratio & Framing**: Locked `.gallery-item` with `aspect-ratio: 4 / 3`, `border-radius: 14px`, and `object-fit: cover` to prevent layout shifts across mixed photo dimensions.
+- [x] **Interactive Micro-Interactions**: Smooth scale-up zoom (`transform: scale(1.06)`) on hover paired with elevation box-shadow (`box-shadow: 0 14px 28px rgba(0,0,0,0.1)`).
+- [x] **Full-Screen Lightbox Preservation**: Tested and verified that clicking gallery items triggers the modal preview (`#img-modal`) with navigation arrows intact.
+- [x] **Performance Optimization**: Added `loading="lazy"` on gallery images in `scripts/pages/index-page.js`.
+- [x] **Compilation & Lint Verification**: Ran `compile_applet` and `lint_applet` (`tsc --noEmit`); both passed with 0 errors.
 

@@ -645,7 +645,7 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                                 .map((item) => sanitizeUrl(item.url))
                                 .filter(Boolean);
                             document.getElementById('gallery-list').innerHTML = galleryUrls.map((safeUrl, index) => {
-                                return `<button type="button" class="gallery-item" data-gallery-index="${index}" data-gallery-url="${escapeHtml(safeUrl)}"><img src="${safeUrl}" alt="Gallery image ${index + 1}"></button>`;
+                                return `<button type="button" class="gallery-item" data-gallery-index="${index}" data-gallery-url="${escapeHtml(safeUrl)}" aria-label="View photo ${index + 1}"><img src="${safeUrl}" alt="Gallery image ${index + 1}" loading="lazy"></button>`;
                             }).join('');
                         }
                         
