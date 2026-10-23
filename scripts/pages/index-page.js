@@ -791,15 +791,61 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
         const lClass = document.getElementById('login-class');
         const lSugg = document.getElementById('student-suggestions');
         const galleryList = document.getElementById('gallery-list');
+        const galleryPrevBtn = document.getElementById('gallery-nav-prev');
+        const galleryNextBtn = document.getElementById('gallery-nav-next');
         const staffContainers = ['teachers-list', 'comm-list', 'dynamic-directory-sections']
             .map((id) => document.getElementById(id))
             .filter(Boolean);
 
+        galleryPrevBtn?.addEventListener('click', () => {
+            if (!galleryList) return;
+            const scrollDist = galleryList.clientWidth * 0.75;
+            galleryList.scrollBy({ left: -scrollDist, behavior: 'smooth' });
+        });
+        galleryNextBtn?.addEventListener('click', () => {
+            if (!galleryList) return;
+            const scrollDist = galleryList.clientWidth * 0.75;
+            galleryList.scrollBy({ left: scrollDist, behavior: 'smooth' });
+        });
+
+        let isGalleryDragging = false;
+        let galleryStartX = 0;
+        let galleryScrollLeft = 0;
+        let hasGalleryDragged = false;
+
+        galleryList?.addEventListener('mousedown', (e) => {
+            isGalleryDragging = true;
+            hasGalleryDragged = false;
+            galleryStartX = e.pageX - galleryList.offsetLeft;
+            galleryScrollLeft = galleryList.scrollLeft;
+            galleryList.style.cursor = 'grabbing';
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (!isGalleryDragging) return;
+            isGalleryDragging = false;
+            if (galleryList) galleryList.style.cursor = '';
+        });
+
+        galleryList?.addEventListener('mousemove', (e) => {
+            if (!isGalleryDragging) return;
+            const x = e.pageX - galleryList.offsetLeft;
+            const walk = (x - galleryStartX) * 1.4;
+            if (Math.abs(walk) > 6) hasGalleryDragged = true;
+            galleryList.scrollLeft = galleryScrollLeft - walk;
+        });
+
         galleryList?.addEventListener('click', (event) => {
+            if (hasGalleryDragged) {
+                event.preventDefault();
+                event.stopPropagation();
+                hasGalleryDragged = false;
+                return;
+            }
             const card = event.target.closest('[data-gallery-url]');
             if (!card) return;
             openImageModal(card.dataset.galleryUrl, Number(card.dataset.galleryIndex || -1));
-        });
+        }, true);
 
         staffContainers.forEach((container) => {
             container.addEventListener('click', (event) => {

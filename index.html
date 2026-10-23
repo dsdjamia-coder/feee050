@@ -149,8 +149,21 @@
 
     <!-- Gallery Section -->
     <div class="container hidden" id="gallery-container">
-        <div class="section-header"><h3>Gallery</h3><div></div></div>
-        <div id="gallery-list" class="gallery-grid gallery-swipe-container"></div>
+        <div class="gallery-header-row">
+            <div class="section-header gallery-section-header">
+                <h3>Gallery</h3>
+                <div></div>
+            </div>
+            <div class="gallery-header-nav">
+                <button type="button" id="gallery-nav-prev" class="gallery-header-nav-btn" aria-label="Previous photos" title="Previous photos">
+                    <i class="fas fa-chevron-left text-xs"></i>
+                </button>
+                <button type="button" id="gallery-nav-next" class="gallery-header-nav-btn" aria-label="Next photos" title="Next photos">
+                    <i class="fas fa-chevron-right text-xs"></i>
+                </button>
+            </div>
+        </div>
+        <div id="gallery-list" class="gallery-swipe-container"></div>
     </div>
 
     <!-- Compact Footer -->

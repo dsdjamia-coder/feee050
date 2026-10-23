@@ -1,6 +1,6 @@
-# Responsive 4-Column Gallery Grid for Desktop & Laptop
+# 4-Row Horizontal Swipe & Multi-Column Peeking Gallery Architecture
 
-Transform the public gallery on `index.html` from a cramped mobile-style horizontal swipe strip into an open, modern responsive photo grid with 4 columns on desktop/laptop displays, 3 columns on tablets, and 2 columns on mobile, complete with smooth hover zoom animations and full-screen lightbox viewing.
+Transform the public gallery on `index.html` into a fixed 4-row horizontal swipe carousel across all device form-factors. Prevents indefinite vertical page stretching while presenting an optimal viewport matrix (8 photos on mobile, 16 photos on desktop) with edge peeking and dual swipe/button navigation.
 
 ---
 
@@ -8,123 +8,142 @@ Transform the public gallery on `index.html` from a cramped mobile-style horizon
 
 > [!IMPORTANT]
 > The following parameters were confirmed by the user in Phase 1 clarification:
-> - **Grid Breakpoints**: Exactly **4 columns on desktop/laptop** (`>= 1024px`), **3 columns on tablet** (`640px - 1023px`), and **2 columns on mobile** (`< 640px`).
-> - **Display Mode**: **Full responsive grid** displaying all institutional photos with subtle hover zoom effects (replacing the cramped horizontal scrolling strip).
-> - **Interaction**: Clicking any gallery thumbnail opens the full-screen interactive lightbox modal (`#img-modal`) with previous/next slide navigation.
-> - **Language Requirement**: All user communications in Malayalam; all UI labels and captions in English only.
+> - **Unified Vertical Height (Fixed 4 Rows)**: Across mobile, tablet, and desktop, the gallery is locked to exactly **4 rows vertically**. All additional photos overflow and scroll **horizontally** to the side.
+> - **Initial Viewport Photo Matrix**:
+>   - **Mobile (`< 640px`)**: Displays **2 columns x 4 rows = 8 photos** in the initial view, with the 3rd column peeking on the right edge to visually cue horizontal swipeability.
+>   - **Tablet (`640px - 1023px`)**: Displays **3 columns x 4 rows = 12 photos** with the 4th column peeking.
+>   - **Desktop / Laptop (`>= 1024px`)**: Displays **4 columns x 4 rows = 16 photos** with the 5th column peeking.
+> - **Navigation & Interaction**: Full touch swipe on mobile, smooth mouse drag-to-scroll, plus prominent **desktop Left/Right navigation arrow buttons** (`<` and `>`).
+> - **Language Requirement**: All user communication in Malayalam; UI elements in English.
 
 ---
 
 ## 1. Overview & Core Concept
 
 ### What It Does
-Replaces the narrow, 4-row horizontal swipe carousel (`.gallery-swipe-container`) with a clean, fluid **4-column responsive photo showcase** on desktop and laptop screens.
+Replaces full-page vertical image expansion with a **high-density, 4-row horizontal swipe gallery**. Institutional event photos flow sideways in clean columns, preventing long-scroll fatigue while showcasing large photo albums smoothly.
 
 ### Target Audience & Persona
-- Visitors, alumni, parents, and students viewing institutional event photos, celebrations, campus moments, and awards on computers, laptops, and tablets.
+- Visitors, students, and parents browsing school galleries on smartphones (via one-thumb swipe) or desktop computers (via arrow buttons or mouse drag).
 
 ### Key Value
-- Eliminates awkward horizontal scrolling and tiny 160px thumbnails on large screens.
-- Displays campus photographs with proper aspect ratios, crisp image rendering, and high-fidelity micro-interactions.
+- **Zero Vertical Page Bloat**: Regardless of whether there are 10 or 150 photos, the gallery stays within a compact vertical footprint (~380px on mobile, ~580px on desktop).
+- **Affordance by Design**: By peeking the next column off the right edge (e.g. 2.2 columns visible on mobile, 4.25 on desktop), users instantly recognize that more photos exist horizontally.
 
 ---
 
 ## 2. User Experience & Visual Design
 
-### Responsive Grid Layout Architecture
+### 4-Row Responsive Horizontal Viewport Matrix
 
 ```
-[ DESKTOP / LAPTOP (>= 1024px) - 4 COLUMNS ]
+[ MOBILE VIEWPORT (< 640px) - 2.2 COLUMNS VISIBLE (8 Photos + Peeking 3rd Col) ]
+┌───────────────────────────────────────────────┐
+│ GALLERY                                       │
+│ ┌──────────────┐ ┌──────────────┐ ┌───[PEEK]─┐│
+│ │ Photo 1      │ │ Photo 5      │ │ Photo 9  ││
+│ └──────────────┘ └──────────────┘ └───[PEEK]─┘│
+│ ┌──────────────┐ ┌──────────────┐ ┌───[PEEK]─┐│
+│ │ Photo 2      │ │ Photo 6      │ │ Photo 10 ││
+│ └──────────────┘ └──────────────┘ └───[PEEK]─┘│
+│ ┌──────────────┐ ┌──────────────┐ ┌───[PEEK]─┐│
+│ │ Photo 3      │ │ Photo 7      │ │ Photo 11 ││
+│ └──────────────┘ └──────────────┘ └───[PEEK]─┘│
+│ ┌──────────────┐ ┌──────────────┐ ┌───[PEEK]─┐│
+│ │ Photo 4      │ │ Photo 8      │ │ Photo 12 ││
+│ └──────────────┘ └──────────────┘ └───[PEEK]─┘│
+│ ◄ Swipe horizontally to view more photos ►    │
+└───────────────────────────────────────────────┘
+
+[ DESKTOP / LAPTOP (>= 1024px) - 4.25 COLUMNS VISIBLE (16 Photos + Peeking 5th Col) ]
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│ GALLERY                                                                         │
-│ ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│ │ Photo 1      │  │ Photo 2      │  │ Photo 3      │  │ Photo 4      │          │
-│ │ [Hover Zoom] │  │              │  │              │  │              │          │
-│ └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘          │
-│ ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│ │ Photo 5      │  │ Photo 6      │  │ Photo 7      │  │ Photo 8      │          │
-│ └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘          │
-│ (All photos displayed in fluid grid with smooth hover elevation & lightbox)     │
+│ GALLERY                                              [ < Prev ]   [ Next > ]    │
+│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──[PEEK]──┐                │
+│ │ Photo 1  │ │ Photo 5  │ │ Photo 9  │ │ Photo 13 │ │ Photo 17 │                │
+│ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──[PEEK]──┘                │
+│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──[PEEK]──┐                │
+│ │ Photo 2  │ │ Photo 6  │ │ Photo 10 │ │ Photo 14 │ │ Photo 18 │                │
+│ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──[PEEK]──┘                │
+│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──[PEEK]──┐                │
+│ │ Photo 3  │ │ Photo 7  │ │ Photo 11 │ │ Photo 15 │ │ Photo 19 │                │
+│ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──[PEEK]──┘                │
+│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──[PEEK]──┐                │
+│ │ Photo 4  │ │ Photo 8  │ │ Photo 12 │ │ Photo 16 │ │ Photo 20 │                │
+│ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──[PEEK]──┘                │
 └─────────────────────────────────────────────────────────────────────────────────┘
-
-[ TABLET (640px - 1023px) - 3 COLUMNS ]
-┌─────────────────────────────────────────────────────────────┐
-│ ┌────────────────┐  ┌────────────────┐  ┌────────────────┐  │
-│ │ Photo 1        │  │ Photo 2        │  │ Photo 3        │  │
-│ └────────────────┘  └────────────────┘  └────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-
-[ MOBILE (< 640px) - 2 COLUMNS ]
-┌───────────────────────────────────────────┐
-│ ┌─────────────────────┐  ┌──────────────┐ │
-│ │ Photo 1             │  │ Photo 2      │ │
-│ └─────────────────────┘  └──────────────┘ │
-└───────────────────────────────────────────┘
 ```
 
-### Visual Polish & Motion Design
-- **Card Ratio & Sizing**: Consistent `aspect-ratio: 4 / 3` across all tiles, providing optimal framing for both landscape and event photography.
-- **Surface & Elevation**:
-  - Base: `background: #f1f5f9; border-radius: 14px; border: 1px solid #f1f5f9; box-shadow: 0 4px 15px rgba(0,0,0,0.03);`
-  - Hover: Elevation via `box-shadow: 0 14px 28px rgba(0,0,0,0.1); transform: translateY(-3px);`
-  - Image transition: `transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);` scaling to `1.06` on hover.
-- **Lightbox Navigation**:
-  - Clicking any card triggers `#img-modal` displaying the high-res image with left/right circular navigation buttons and backdrop blur.
+### Spatial Dimensions & Ratios
+- **Grid Engine**:
+  - `display: grid;`
+  - `grid-auto-flow: column;` (causes columns to append horizontally to the right).
+  - `grid-template-rows: repeat(4, ...);` (locks vertical rows strictly to 4).
+- **Row Heights & Column Widths**:
+  - **Mobile**: Rows `repeat(4, 88px)`, column width `calc((100% - 10px) / 2.2)` (~155px), gap `8px`. Total height ~380px.
+  - **Tablet**: Rows `repeat(4, 115px)`, column width `calc((100% - 24px) / 3.2)` (~210px), gap `12px`. Total height ~500px.
+  - **Desktop**: Rows `repeat(4, 135px)`, column width `calc((100% - 45px) / 4.25)` (~245px), gap `15px`. Total height ~585px.
+- **Micro-Interactions**:
+  - Smooth hover scale `transform: scale(1.05);` on desktop.
+  - Floating Left/Right navigation arrow buttons near the header on desktop devices for 1-click column advancement.
+  - Smooth drag-to-scroll listener for desktop mouse users.
 
 ---
 
 ## 3. Key Technical Decisions & Trade-Offs
 
-- **Standard Vertical Grid vs. Horizontal Swipe Strip**:
-  - *Chosen Approach*: Fully vertical responsive grid on desktop/tablets instead of horizontal swipe overflow.
-  - *Why*: Modern institutional websites present media catalogs in natural page-flowing grids; horizontal swipe is suited only for cramped touch screens.
-- **Aspect Ratio Locking (`aspect-ratio: 4 / 3`)**:
-  - *Chosen Approach*: Fixed ratio with `object-fit: cover`.
-  - *Why*: Prevents layout shifts (CLS) and irregular patchwork gaps when images have varying raw resolutions.
+- **CSS Grid with `grid-auto-flow: column` vs. Multiple Flex Wrappers**:
+  - *Chosen Approach*: Pure CSS Grid with `grid-template-rows: repeat(4, ...); grid-auto-flow: column; overflow-x: auto;`.
+  - *Why*: Eliminates complex DOM splitting into sub-divs; the browser naturally tiles images top-to-bottom then left-to-right.
+- **Scroll Snap & Edge Peeking (`2.2` / `4.25` divisor)**:
+  - *Chosen Approach*: Setting column width using fractional viewport divisors so the subsequent column is cut in half at the container boundary.
+  - *Why*: Visual affordance principle—users naturally swipe when they see an element partially sliced at the right margin.
 
 ---
 
 ## 4. Technical Architecture & File Modifications
 
 ### Files to Modify
-1. **`styles/main.css`**:
-   - Modernize `.gallery-swipe-container` (or add `.gallery-grid`):
-     - Mobile: `display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;`
-     - Tablet (`@media (min-width: 640px)`): `grid-template-columns: repeat(3, 1fr); gap: 14px;`
-     - Desktop (`@media (min-width: 1024px)`): `grid-template-columns: repeat(4, 1fr); gap: 18px;`
-   - Style `.gallery-item`:
-     - `aspect-ratio: 4 / 3; width: 100%; border-radius: 14px; overflow: hidden; position: relative;`
-     - Smooth hover scale `transform: scale(1.06);` on child `img`.
-   - Ensure `#gallery-container.container` on desktop has `max-width: 1120px` matching the notifications section.
-2. **`index.html`**:
-   - Ensure the gallery container markup supports the updated grid class.
+1. **`index.html`**:
+   - Add Left and Right desktop navigation buttons in `#gallery-container` header:
+     `<button id="gallery-nav-prev" ...><i class="fas fa-chevron-left"></i></button>`
+     `<button id="gallery-nav-next" ...><i class="fas fa-chevron-right"></i></button>`
+2. **`styles/main.css`**:
+   - Configure `.gallery-swipe-container`:
+     - Mobile: `grid-template-rows: repeat(4, 88px); grid-auto-columns: calc((100% - 10px) / 2.2); gap: 8px;`
+     - Tablet (`@media (min-width: 640px)`): `grid-template-rows: repeat(4, 115px); grid-auto-columns: calc((100% - 24px) / 3.2); gap: 12px;`
+     - Desktop (`@media (min-width: 1024px)`): `grid-template-rows: repeat(4, 135px); grid-auto-columns: calc((100% - 45px) / 4.25); gap: 15px;`
+     - Custom sleek horizontal scrollbar and `scroll-snap-type: x mandatory`.
+   - Style desktop gallery arrow navigation buttons.
 3. **`scripts/pages/index-page.js`**:
-   - Verify that image cards in `#gallery-list` render with proper accessibility attributes (`alt`, `loading="lazy"`), index tracking, and lightbox click delegation.
+   - Add click event listeners to `#gallery-nav-prev` and `#gallery-nav-next` to smoothly scroll by one column offset.
+   - Implement optional mouse drag-to-scroll handler for desktop mice.
 
 ---
 
 ## 5. Testing & Verification Plan
 
-1. **Desktop / Laptop Test (>= 1024px)**:
-   - Verify photos appear in a pristine 4-column layout with 18px uniform gaps.
-   - Verify images fill each tile without distortion.
-2. **Tablet Test (640px - 1023px)**:
-   - Verify grid reflows automatically to 3 columns.
-3. **Mobile Test (< 640px)**:
-   - Verify grid reflows cleanly to 2 columns without horizontal overflow.
-4. **Lightbox Test**:
-   - Click on various gallery items to verify the full-screen image preview, next/prev arrow controls, and close handler operate smoothly.
-5. **Compilation & Lint Verification**:
-   - Execute `compile_applet` and `lint_applet` to confirm zero regression.
+1. **Mobile Test (< 640px)**:
+   - Verify exactly 4 rows vertically.
+   - Verify exactly 2 columns are fully visible (8 photos) and the 3rd column is visibly cut off (peeking).
+   - Test touch swipe horizontally to reveal subsequent columns.
+2. **Desktop Test (>= 1024px)**:
+   - Verify exactly 4 rows vertically.
+   - Verify 4 columns are fully visible (16 photos) and the 5th column peeks.
+   - Click Left and Right header arrow buttons to verify smooth horizontal advancement.
+   - Test mouse drag-to-scroll.
+3. **Lightbox Test**:
+   - Click any photo to verify that `#img-modal` lightbox opens correctly with full-screen view and image navigation.
+4. **Build & Lint Verification**:
+   - Run `compile_applet` and `lint_applet` to confirm zero regression.
 
 ---
 
 ## 6. Implementation Status & Verification Results
 
-- [x] **Responsive 4-Column Grid Architecture**: Updated in `styles/main.css` (`@media (min-width: 1024px) { grid-template-columns: repeat(4, 1fr); gap: 20px; }`, 3 columns on tablet, 2 columns on mobile).
-- [x] **Standard Aspect Ratio & Framing**: Locked `.gallery-item` with `aspect-ratio: 4 / 3`, `border-radius: 14px`, and `object-fit: cover` to prevent layout shifts across mixed photo dimensions.
-- [x] **Interactive Micro-Interactions**: Smooth scale-up zoom (`transform: scale(1.06)`) on hover paired with elevation box-shadow (`box-shadow: 0 14px 28px rgba(0,0,0,0.1)`).
-- [x] **Full-Screen Lightbox Preservation**: Tested and verified that clicking gallery items triggers the modal preview (`#img-modal`) with navigation arrows intact.
-- [x] **Performance Optimization**: Added `loading="lazy"` on gallery images in `scripts/pages/index-page.js`.
-- [x] **Compilation & Lint Verification**: Ran `compile_applet` and `lint_applet` (`tsc --noEmit`); both passed with 0 errors.
+- [x] **Fixed 4-Row Horizontal Swipe Architecture**: Implemented in `styles/main.css` (`grid-template-rows: repeat(4, ...); grid-auto-flow: column;`), strictly locking the gallery to 4 vertical rows on all screen sizes to eliminate vertical page stretching.
+- [x] **Mobile 8-Photo Matrix & Peeking Column**: Configured `grid-auto-columns: calc((100% - 10px) / 2.2)`, displaying 2 full columns (8 photos) with the 3rd column peeking on the right to visually prompt horizontal swiping.
+- [x] **Desktop 16-Photo Matrix & Peeking Column**: Configured `grid-auto-columns: calc((100% - 45px) / 4.25)`, displaying 4 full columns (16 photos) on desktop and laptop displays with the 5th column peeking.
+- [x] **Desktop Header Navigation Arrow Buttons**: Added `#gallery-nav-prev` and `#gallery-nav-next` in `index.html` with click handlers in `scripts/pages/index-page.js` for 1-click smooth horizontal advancement.
+- [x] **Mouse Drag-to-Scroll & Lightbox Protection**: Implemented smooth mouse dragging with threshold detection so dragging does not accidentally trigger photo lightbox clicks.
+- [x] **Compilation & Lint Verification**: Checked with `compile_applet` and `lint_applet` (`tsc --noEmit`) - both succeeded with 0 errors.
 
