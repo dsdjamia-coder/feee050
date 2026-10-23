@@ -9765,6 +9765,517 @@ const handleClearAuditLogs = async () => {
 
 document.getElementById('clear-audit-logs-btn')?.addEventListener('click', handleClearAuditLogs);
 
+// --- 11B. INSTITUTIONAL DATA PURGE & RESET (DANGER ZONE) ---
+const PURGE_CATEGORY_META = {
+    students: {
+        label: 'Students & Admissions',
+        badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
+        description: 'Student profiles, enrollments, continuous academic history'
+    },
+    payments: {
+        label: 'Fee Records & Payments',
+        badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        description: 'Payments, fee collections, concessions'
+    },
+    results: {
+        label: 'Exam Results & Schemas',
+        badgeClass: 'bg-purple-100 text-purple-800 border-purple-200',
+        description: 'Marks, exam results, result schemas, result center settings'
+    },
+    staff: {
+        label: 'Staff & Sub-Accounts',
+        badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
+        description: 'Non-admin staff, teachers, staff access (Super Admin protected)'
+    },
+    groups: {
+        label: 'Student Groups & Batches',
+        badgeClass: 'bg-teal-100 text-teal-800 border-teal-200',
+        description: 'Student groups and batch classifications'
+    },
+    website: {
+        label: 'Website & Directory',
+        badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+        description: 'Notices, gallery items, directory categories & entries'
+    },
+    years: {
+        label: 'Academic Years',
+        badgeClass: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+        description: 'Academic year sessions (resets to a fresh active year)'
+    },
+    audit: {
+        label: 'Audit Trail Logs',
+        badgeClass: 'bg-slate-100 text-slate-800 border-slate-200',
+        description: 'Audit logs (checkpoint retained)'
+    }
+};
+
+const getSelectedPurgeCategories = () => {
+    const checkboxes = document.querySelectorAll('.purge-category-cb:checked');
+    return Array.from(checkboxes).map(cb => cb.dataset.category).filter(Boolean);
+};
+
+const updatePurgeSelectionUI = () => {
+    const allCheckboxes = document.querySelectorAll('.purge-category-cb');
+    const checkedCheckboxes = document.querySelectorAll('.purge-category-cb:checked');
+    const masterCheckbox = document.getElementById('purge-select-all');
+    const countBadge = document.getElementById('purge-selected-count-badge');
+    const purgeBtn = document.getElementById('open-data-purge-btn');
+
+    const total = allCheckboxes.length;
+    const selected = checkedCheckboxes.length;
+
+    if (masterCheckbox) {
+        masterCheckbox.checked = total > 0 && selected === total;
+        masterCheckbox.indeterminate = selected > 0 && selected < total;
+    }
+    if (countBadge) {
+        countBadge.textContent = `${selected} categor${selected === 1 ? 'y' : 'ies'} selected`;
+    }
+    if (purgeBtn) {
+        purgeBtn.disabled = selected === 0;
+    }
+};
+
+document.getElementById('purge-select-all')?.addEventListener('change', (e) => {
+    const isChecked = e.target.checked;
+    document.querySelectorAll('.purge-category-cb').forEach(cb => {
+        cb.checked = isChecked;
+    });
+    updatePurgeSelectionUI();
+});
+
+document.addEventListener('change', (e) => {
+    if (e.target && e.target.classList.contains('purge-category-cb')) {
+        updatePurgeSelectionUI();
+    }
+});
+
+const openPurgeModal = (modalId) => {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+const closePurgeModal = (modalId) => {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+};
+
+document.getElementById('open-data-purge-btn')?.addEventListener('click', () => {
+    if (currentAdminRole !== 'super_admin') {
+        alert('Access Denied: Only Super Admin can execute institutional data purge operations.');
+        return;
+    }
+    const selected = getSelectedPurgeCategories();
+    if (!selected.length) {
+        alert('Please select at least one data category to purge.');
+        return;
+    }
+    openPurgeModal('purge-backup-modal');
+});
+
+document.getElementById('purge-backup-cancel-btn')?.addEventListener('click', () => {
+    closePurgeModal('purge-backup-modal');
+});
+
+document.getElementById('purge-backup-download-proceed-btn')?.addEventListener('click', async () => {
+    try {
+        const payload = await buildBackupPayload();
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `pre-purge-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        await logAuditEvent({ category: 'backup', action: 'backup.export_pre_purge', entityType: 'backup', message: 'Pre-purge JSON backup exported.' });
+    } catch (err) {
+        console.error('Failed to export pre-purge backup snapshot:', err);
+    }
+    closePurgeModal('purge-backup-modal');
+    openPurgeConfirmModal();
+});
+
+document.getElementById('purge-backup-skip-proceed-btn')?.addEventListener('click', () => {
+    closePurgeModal('purge-backup-modal');
+    openPurgeConfirmModal();
+});
+
+const openPurgeConfirmModal = () => {
+    const selected = getSelectedPurgeCategories();
+    const categoriesContainer = document.getElementById('purge-confirm-categories-list');
+    if (categoriesContainer) {
+        categoriesContainer.innerHTML = selected.map(catKey => {
+            const meta = PURGE_CATEGORY_META[catKey] || { label: catKey, badgeClass: 'bg-slate-100 text-slate-800 border-slate-200' };
+            return `<span class="px-2.5 py-1 rounded-md text-xs font-bold border ${meta.badgeClass} flex items-center gap-1.5"><i class="fas fa-check text-[10px]"></i> ${escapeHtml(meta.label)}</span>`;
+        }).join('');
+    }
+
+    const pwdInput = document.getElementById('purge-confirm-password');
+    const phraseInput = document.getElementById('purge-confirm-phrase');
+    const errBox = document.getElementById('purge-confirm-error');
+    const execBtn = document.getElementById('purge-confirm-execute-btn');
+
+    if (pwdInput) pwdInput.value = '';
+    if (phraseInput) phraseInput.value = '';
+    if (errBox) {
+        errBox.textContent = '';
+        errBox.classList.add('hidden');
+    }
+    if (execBtn) execBtn.disabled = true;
+
+    openPurgeModal('purge-confirm-modal');
+};
+
+const updatePurgeConfirmButtonState = () => {
+    const pwd = document.getElementById('purge-confirm-password')?.value || '';
+    const phrase = document.getElementById('purge-confirm-phrase')?.value?.trim().toUpperCase() || '';
+    const execBtn = document.getElementById('purge-confirm-execute-btn');
+    if (execBtn) {
+        execBtn.disabled = !(pwd.length >= 6 && phrase === 'DELETE PERMANENTLY');
+    }
+};
+
+document.getElementById('purge-confirm-password')?.addEventListener('input', updatePurgeConfirmButtonState);
+document.getElementById('purge-confirm-phrase')?.addEventListener('input', updatePurgeConfirmButtonState);
+
+document.getElementById('purge-confirm-password-toggle')?.addEventListener('click', () => {
+    const input = document.getElementById('purge-confirm-password');
+    const icon = document.querySelector('#purge-confirm-password-toggle i');
+    if (!input) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        if (icon) { icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); }
+    } else {
+        input.type = 'password';
+        if (icon) { icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); }
+    }
+});
+
+document.getElementById('purge-confirm-cancel-btn')?.addEventListener('click', () => {
+    closePurgeModal('purge-confirm-modal');
+});
+
+const appendPurgeProgressLog = (message, isSuccess = false) => {
+    const logBox = document.getElementById('purge-progress-log');
+    if (!logBox) return;
+    const item = document.createElement('div');
+    item.className = isSuccess ? 'text-emerald-400 font-semibold' : 'text-slate-300';
+    item.textContent = `> ${message}`;
+    logBox.appendChild(item);
+    logBox.scrollTop = logBox.scrollHeight;
+};
+
+const updatePurgeProgressState = (pct, statusText) => {
+    const clamped = Math.min(100, Math.max(0, Math.round(pct)));
+    const bar = document.getElementById('purge-progress-bar');
+    const pctEl = document.getElementById('purge-progress-pct');
+    const statusEl = document.getElementById('purge-progress-status');
+    if (bar) bar.style.width = `${clamped}%`;
+    if (pctEl) pctEl.textContent = `${clamped}%`;
+    if (statusEl) statusEl.textContent = statusText;
+};
+
+const batchDeleteCollection = async (collectionPath, filterFn = null) => {
+    const snap = await getDocs(collection(db, collectionPath));
+    let targets = snap.docs;
+    if (filterFn) targets = targets.filter(filterFn);
+    const total = targets.length;
+    if (total === 0) return 0;
+    const batchSize = 400;
+    let deleted = 0;
+    for (let i = 0; i < total; i += batchSize) {
+        const batch = writeBatch(db);
+        const chunk = targets.slice(i, i + batchSize);
+        chunk.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        deleted += chunk.length;
+    }
+    return deleted;
+};
+
+document.getElementById('purge-confirm-execute-btn')?.addEventListener('click', async () => {
+    const pwd = document.getElementById('purge-confirm-password')?.value || '';
+    const phrase = document.getElementById('purge-confirm-phrase')?.value?.trim().toUpperCase() || '';
+    const errBox = document.getElementById('purge-confirm-error');
+    const execBtn = document.getElementById('purge-confirm-execute-btn');
+
+    if (phrase !== 'DELETE PERMANENTLY') {
+        if (errBox) {
+            errBox.textContent = 'Please type "DELETE PERMANENTLY" exactly to confirm.';
+            errBox.classList.remove('hidden');
+        }
+        return;
+    }
+
+    const authUser = auth.currentUser;
+    if (!authUser || !authUser.email) {
+        if (errBox) {
+            errBox.textContent = 'Authenticated Super Admin session not found. Please log in again.';
+            errBox.classList.remove('hidden');
+        }
+        return;
+    }
+
+    if (execBtn) {
+        execBtn.disabled = true;
+        execBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Verifying...';
+    }
+
+    try {
+        const credential = EmailAuthProvider.credential(authUser.email, pwd);
+        await reauthenticateWithCredential(authUser, credential);
+    } catch (authErr) {
+        console.error('Super Admin reauthentication failed:', authErr);
+        if (execBtn) {
+            execBtn.disabled = false;
+            execBtn.innerHTML = '<i class="fas fa-trash-alt mr-1"></i> Execute Permanent Purge';
+        }
+        if (errBox) {
+            errBox.textContent = `Verification failed: ${authErr?.message || 'Invalid Super Admin password.'}`;
+            errBox.classList.remove('hidden');
+        }
+        return;
+    }
+
+    closePurgeModal('purge-confirm-modal');
+    openPurgeModal('purge-progress-modal');
+
+    const progressTitle = document.getElementById('purge-progress-title');
+    const progressSubtitle = document.getElementById('purge-progress-subtitle');
+    const progressIcon = document.getElementById('purge-progress-icon');
+    const doneBtn = document.getElementById('purge-progress-done-btn');
+    const logBox = document.getElementById('purge-progress-log');
+
+    if (progressTitle) progressTitle.textContent = 'Purging Institutional Data...';
+    if (progressSubtitle) progressSubtitle.textContent = 'Processing in safe transactional batches';
+    if (progressIcon) progressIcon.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    if (doneBtn) doneBtn.classList.add('hidden');
+    if (logBox) logBox.innerHTML = '<div class="text-slate-400">&gt; Starting purge operation...</div>';
+
+    const selectedCategories = getSelectedPurgeCategories();
+    const totalSteps = selectedCategories.length;
+    let completedSteps = 0;
+    const superAdminEmail = normalizeEmail(authUser.email);
+
+    updatePurgeProgressState(5, 'Super Admin verified. Initializing...');
+    appendPurgeProgressLog(`Super Admin verified (${superAdminEmail}). Starting purge for ${totalSteps} categories.`);
+
+    try {
+        for (const catKey of selectedCategories) {
+            const stepWeight = 90 / totalSteps;
+            const currentBasePct = 5 + (completedSteps * stepWeight);
+
+            switch (catKey) {
+                case 'students': {
+                    updatePurgeProgressState(currentBasePct + 5, 'Purging student records and enrollments...');
+                    appendPurgeProgressLog('Purging students collection...');
+                    const purgedStudents = await batchDeleteCollection(`${BASE_PATH}/students`);
+                    appendPurgeProgressLog(`Deleted ${purgedStudents} student documents.`);
+
+                    try {
+                        const yearsToScan = Array.isArray(academicYears) && academicYears.length ? academicYears : [{ label: activeAcademicYear || '2025-2026' }];
+                        for (const yr of yearsToScan) {
+                            const yrId = toAcademicYearDocId(yr.label || yr.id || '');
+                            if (yrId) {
+                                await batchDeleteCollection(`${BASE_PATH}/academicYears/${yrId}/enrollments`);
+                            }
+                        }
+                        appendPurgeProgressLog('Academic year enrollments purged.');
+                    } catch (e) {
+                        console.warn('Enrollments purge notice:', e);
+                    }
+
+                    students = [];
+                    rawStudents = [];
+                    editingStudentId = null;
+                    appendPurgeProgressLog('Student records & admissions purged successfully.', true);
+                    break;
+                }
+
+                case 'payments': {
+                    updatePurgeProgressState(currentBasePct + 5, 'Purging fee records and payments...');
+                    appendPurgeProgressLog('Purging payments collection...');
+                    const purgedPayments = await batchDeleteCollection(`${BASE_PATH}/payments`);
+                    allPayments = [];
+                    appendPurgeProgressLog(`Purged ${purgedPayments} payment transaction records.`, true);
+                    break;
+                }
+
+                case 'results': {
+                    updatePurgeProgressState(currentBasePct + 5, 'Purging exam results & schemas...');
+                    appendPurgeProgressLog('Purging examResults and resultSchemas collections...');
+                    const purgedResults = await batchDeleteCollection(`${BASE_PATH}/examResults`);
+                    const purgedSchemas = await batchDeleteCollection(`${BASE_PATH}/resultSchemas`);
+
+                    await setDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter'), {
+                        academicYear: getActiveAcademicYearLabel(),
+                        examLabel: '',
+                        publishAt: '',
+                        locked: false,
+                        blockedClasses: [],
+                        gradeBasis: 'raw',
+                        gradeScaleTotal: 100,
+                        gradeRules: DEFAULT_GRADE_RULES,
+                        classProgressionMap: {},
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+
+                    examResultsCache = [];
+                    resultSchemas = [];
+                    appendPurgeProgressLog(`Purged ${purgedResults} exam result entries and ${purgedSchemas} schemas.`, true);
+                    break;
+                }
+
+                case 'staff': {
+                    updatePurgeProgressState(currentBasePct + 5, 'Purging non-admin staff records...');
+                    appendPurgeProgressLog('Purging staff directory (Preserving Super Admin)...');
+
+                    const purgedStaff = await batchDeleteCollection(`${BASE_PATH}/staff`, (docSnap) => {
+                        const data = docSnap.data() || {};
+                        const staffEmail = normalizeEmail(data.email || '');
+                        const isSuper = staffEmail === superAdminEmail || staffEmail === normalizeEmail(currentAdminEmail) || data.role === 'super_admin';
+                        return !isSuper;
+                    });
+
+                    try {
+                        await batchDeleteCollection(`${BASE_PATH}/staffAccess`, (docSnap) => {
+                            const data = docSnap.data() || {};
+                            const keyEmail = normalizeEmail(data.email || docSnap.id || '');
+                            return keyEmail !== superAdminEmail && keyEmail !== normalizeEmail(currentAdminEmail);
+                        });
+                    } catch (e) {
+                        console.warn('Staff access purge notice:', e);
+                    }
+
+                    allStaff = allStaff.filter(s => normalizeEmail(s.email) === superAdminEmail || normalizeEmail(s.email) === normalizeEmail(currentAdminEmail));
+                    appendPurgeProgressLog(`Purged ${purgedStaff} staff records. Super Admin credentials preserved.`, true);
+                    break;
+                }
+
+                case 'groups': {
+                    updatePurgeProgressState(currentBasePct + 5, 'Purging student groups and batches...');
+                    appendPurgeProgressLog('Purging studentGroups collection...');
+                    const purgedGroups = await batchDeleteCollection(`${BASE_PATH}/studentGroups`);
+                    studentGroups = [];
+                    appendPurgeProgressLog(`Purged ${purgedGroups} student groups.`, true);
+                    break;
+                }
+
+                case 'website': {
+                    updatePurgeProgressState(currentBasePct + 5, 'Resetting website content and directory...');
+                    appendPurgeProgressLog('Purging public directory entries...');
+                    const purgedDir = await batchDeleteCollection(`${BASE_PATH}/publicDirectory`);
+
+                    webContent = { notices: [], gallery: [], directoryCategories: [] };
+                    publicDirectoryEntries = [];
+                    await setDoc(doc(db, `${BASE_PATH}/settings`, 'content'), webContent, { merge: true });
+
+                    appendPurgeProgressLog(`Reset website notices, gallery, and removed ${purgedDir} directory entries.`, true);
+                    break;
+                }
+
+                case 'years': {
+                    updatePurgeProgressState(currentBasePct + 5, 'Resetting academic years calendar...');
+                    appendPurgeProgressLog('Resetting academic years to clean baseline active year...');
+
+                    const baseActiveYear = activeAcademicYear || '2025-2026';
+                    const cleanYearsPayload = {
+                        activeYear: baseActiveYear,
+                        years: [{
+                            label: baseActiveYear,
+                            status: 'active',
+                            startMonth: 5,
+                            endMonth: 4,
+                            createdAt: new Date().toISOString()
+                        }]
+                    };
+
+                    await setDoc(doc(db, `${BASE_PATH}/settings`, 'academicYears'), cleanYearsPayload, { merge: false });
+                    academicYears = cleanYearsPayload.years;
+                    activeAcademicYear = baseActiveYear;
+                    appendPurgeProgressLog(`Academic years reset to clean active session: ${baseActiveYear}.`, true);
+                    break;
+                }
+
+                case 'audit': {
+                    updatePurgeProgressState(currentBasePct + 5, 'Purging audit logs...');
+                    appendPurgeProgressLog('Purging past audit log records...');
+                    const purgedLogs = await batchDeleteCollection(`${BASE_PATH}/auditLogs`);
+                    auditLogs = [];
+                    appendPurgeProgressLog(`Purged ${purgedLogs} past audit records.`, true);
+                    break;
+                }
+
+                default:
+                    break;
+            }
+
+            completedSteps++;
+            updatePurgeProgressState(5 + (completedSteps * (90 / totalSteps)), `Completed ${catKey}...`);
+        }
+
+        updatePurgeProgressState(98, 'Recording security purge checkpoint...');
+        const checkpointData = {
+            category: 'security',
+            action: 'system.data_purge',
+            adminEmail: superAdminEmail,
+            adminRole: 'super_admin',
+            createdAt: new Date().toISOString(),
+            timestamp: Date.now(),
+            isPurgeCheckpoint: true,
+            purgedCategories: selectedCategories,
+            message: `Institutional data purge executed by Super Admin (${selectedCategories.map(c => PURGE_CATEGORY_META[c]?.label || c).join(', ')}). All selected records were permanently erased. Root Super Admin account preserved.`
+        };
+
+        const newDocRef = await addDoc(collection(db, `${BASE_PATH}/auditLogs`), checkpointData);
+        auditLogs = [{ id: newDocRef.id, ...checkpointData }];
+
+        updatePurgeProgressState(100, 'Purge completed successfully!');
+        appendPurgeProgressLog('Data purge operation finished and verified successfully.', true);
+
+        if (progressTitle) progressTitle.textContent = 'Purge Completed Successfully';
+        if (progressSubtitle) progressSubtitle.textContent = 'Selected institutional records have been permanently erased.';
+        if (progressIcon) progressIcon.innerHTML = '<i class="fas fa-check-circle text-emerald-600"></i>';
+        if (doneBtn) doneBtn.classList.remove('hidden');
+
+    } catch (err) {
+        console.error('Data purge operation encountered an error:', err);
+        appendPurgeProgressLog(`ERROR during purge: ${err?.message || 'Operation failed.'}`);
+        updatePurgeProgressState(100, 'Purge encountered an error.');
+        if (progressTitle) progressTitle.textContent = 'Purge Incomplete';
+        if (progressSubtitle) progressSubtitle.textContent = 'An error occurred during execution.';
+        if (progressIcon) progressIcon.innerHTML = '<i class="fas fa-exclamation-circle text-rose-600"></i>';
+        if (doneBtn) doneBtn.classList.remove('hidden');
+    }
+});
+
+document.getElementById('purge-progress-done-btn')?.addEventListener('click', () => {
+    closePurgeModal('purge-progress-modal');
+
+    document.querySelectorAll('.purge-category-cb').forEach(cb => { cb.checked = false; });
+    const selectAllCb = document.getElementById('purge-select-all');
+    if (selectAllCb) selectAllCb.checked = false;
+    updatePurgeSelectionUI();
+
+    renderDashboard();
+    renderAuditLogList();
+    renderStudentList();
+    renderStaffList();
+    renderAcademicYears();
+    renderStudentGroups();
+    renderDirectoryCategories();
+    renderDirectoryEntries();
+    if (typeof renderResultManagement === 'function') renderResultManagement();
+
+    alert('Institutional data purge complete. Selected modules have been reset.');
+});
+
 document.getElementById('add-academic-year-btn').addEventListener('click', async () => {
     if(!requirePermission('academic-years.manage')) return;
     const inputEl = document.getElementById('academic-year-input');

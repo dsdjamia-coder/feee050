@@ -1,0 +1,6 @@
+{
+  "summary":  "Granular Data Deletion and System Purge architecture for Admin Security & Settings, featuring module-level checkboxes, Super Admin protection, optional pre-deletion JSON backup, dual-factor confirmation (password + typed phrase), and chunked batch deletion.",
+  "updatedAt":  "2026-10-23T01:50:07.241801427Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}
