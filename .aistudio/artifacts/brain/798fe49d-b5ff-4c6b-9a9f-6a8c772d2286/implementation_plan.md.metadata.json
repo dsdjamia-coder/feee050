@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan to transform Active Concessions and Student Groups to structured table format, with search and class filtering for existing groups.",
-  "updatedAt":  "2026-10-24T05:13:49.658435613Z",
+  "summary":  "Implementation plan to update student group member table parent column: default to Father's name & phone number, with fallback to Mother's name & phone number if father info is absent.",
+  "updatedAt":  "2026-10-24T05:26:41.255909703Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -1,50 +1,37 @@
-# Implementation Plan: Table Layout & Search/Filter for Student Groups & Concessions
+# Implementation Plan: Parent Details (Father/Mother) in Existing Groups Table
 
-## 1. Requirement Overview
-1. **Student Groups Search & Filter**:
-   - In "Existing Groups" (`#manage-groups-page`), add a real-time search box (by student name, adm no) and a class filter dropdown.
-   - Show dynamic matching count (e.g. "Showing X of Y groups").
-2. **Student Groups Table Format (Grouped Table)**:
-   - Replace the current badge/card view with a clear, professional grouped table structure.
-   - Each group will be presented with:
-     - Group Header: Group number, total member count, monthly fee badge (₹/month), and Edit/Delete buttons.
-     - Members Table: Columns for `#`, `Student Name`, `Class`, `Admission No`, and `Phone/Guardian`.
-3. **Active Concessions Table Format**:
-   - Replace the card grid in Active Concessions (`#active-concessions-list`) with a clean, responsive table.
-   - Table columns: `#`, `Student Name & Guardian`, `Class`, `Adm No`, `Special Monthly Fee (₹)`, and `Actions` (Edit & Remove).
+## 1. Requirement & Problem Analysis
+- **Current Behavior**:
+  - In Existing Groups (`#student-groups-list`), the member student table currently displays a column labeled `Guardian / Phone`.
+  - It resolves parent info using `student.fatherName || student.parentPhone || student.phone || '-'`.
+  - The actual student database schema stores parent details as Father (`father`, `mobile` / `fatherMobile`) and Mother (`mother`, `motherMobile`).
+- **Target Behavior**:
+  - Display Father's name and phone number by default.
+  - If Father's info (name & phone) is not present, automatically fall back to Mother's name and phone number.
+  - Display a clear role badge (`Father` or `Mother`) alongside the name and phone number.
+  - Column header updated to `Parent (Father / Mother)`.
+  - Update group search filter to support matching Father's name/phone and Mother's name/phone.
 
 ---
 
 ## 2. Proposed Changes
 
-### File 1: `admin.html`
-1. **Student Groups Section (`#manage-groups-page`)**:
-   - Above `#student-groups-list`, add a Search & Filter toolbar:
-     - Search input: `#grp-search-input` (Search student name, adm no...)
-     - Class dropdown: `#grp-class-filter` (All Classes filter)
-     - Status counter: `#grp-count-badge`
-   - Adjust `#student-groups-list` layout to host responsive grouped tables.
-2. **Fee Concessions Section (`#fee-concessions-page`)**:
-   - Replace grid wrapper around `#active-concessions-list` with a responsive table container:
-     - `table` with sticky-friendly styled headers: `#`, `Student Name`, `Class`, `Adm No`, `Special Monthly Fee`, `Actions`.
-     - `tbody id="active-concessions-table-body"` for rows.
-
-### File 2: `scripts/pages/admin-page.js`
-1. **Student Groups Rendering (`renderStudentGroups`)**:
-   - Populate `#grp-class-filter` options using active classes.
-   - Read `#grp-search-input` and `#grp-class-filter`.
-   - Filter groups where any member student matches the search term or class.
-   - Render each group as a structured block containing a clean tabular view of its member students.
-   - Wire input/change event listeners for `#grp-search-input` and `#grp-class-filter`.
-2. **Active Concessions Rendering (`renderActiveConcessionsList`)**:
-   - Change rendering from card blocks to `<tr>` table rows.
-   - Include row indices (`#`), formatted names, badges for class and admission number, bold currency badge for concession amount, and action buttons (`Edit`, `Remove`).
-   - Preserve existing event delegations (`.concession-open-btn`, `.concession-delete-btn`).
+### File: `scripts/pages/admin-page.js`
+- **Location**: `renderStudentGroups` (lines 6395–6515).
+- **Changes**:
+  1. For each student row in `memberRows`:
+     - Extract `fatherName = student.father || student.fatherName || student.profile?.father || ''`.
+     - Extract `fatherPhone = student.mobile || student.fatherMobile || student.parentPhone || student.phone || student.profile?.fatherMobile || ''`.
+     - Extract `motherName = student.mother || student.motherName || student.profile?.mother || ''`.
+     - Extract `motherPhone = student.motherMobile || student.profile?.motherMobile || ''`.
+     - Priority logic: If `fatherName || fatherPhone`, show Father's name & phone. Else if `motherName || motherPhone`, show Mother's name & phone.
+     - Display with formatted name and phone number (e.g. `[Father] Ahmed · 9876543210`).
+  2. Change table header column from `Guardian / Phone` to `Parent (Father / Mother)`.
+  3. Include Father and Mother names and phone numbers in the `sTerm` search matcher so searching either parent quickly finds the group.
 
 ---
 
 ## 3. Risks & Verification
-- **Functional Integrity**: Edit and delete actions for both groups and concessions must retain exact event delegation and ID mapping.
-- **Responsive Layout**: Tables will have `overflow-x-auto` to ensure seamless scrolling on mobile and tablet devices.
-- **Language Requirements**: All UI elements, headers, and buttons in English only; user communication in Malayalam.
+- **Compatibility**: Read-only display adjustment using existing student fields (`father`, `mobile`, `mother`, `motherMobile`).
+- **UI Integrity**: Keeps clean layout with responsive text wrapping and font-mono styling for phone numbers. All UI text in English.
 - **Verification**: Run `npx tsc --noEmit` and `compile_applet`.

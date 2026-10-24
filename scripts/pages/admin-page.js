@@ -6395,13 +6395,21 @@ const renderStudentGroups = () => {
 
         let matchSearch = true;
         if (sTerm) {
-            const matchesMember = memberStudents.some((st) => 
-                (st.name || '').toLowerCase().includes(sTerm) ||
-                (st.adm && String(st.adm).toLowerCase().includes(sTerm)) ||
-                (st.phone && String(st.phone).toLowerCase().includes(sTerm)) ||
-                (st.parentPhone && String(st.parentPhone).toLowerCase().includes(sTerm)) ||
-                (st.fatherName && String(st.fatherName).toLowerCase().includes(sTerm))
-            );
+            const matchesMember = memberStudents.some((st) => {
+                const sName = (st.name || '').toLowerCase();
+                const sAdm = (st.adm ? String(st.adm) : '').toLowerCase();
+                const fName = (st.father || st.fatherName || st.profile?.father || '').toLowerCase();
+                const fPhone = (st.mobile || st.fatherMobile || st.parentPhone || st.phone || st.profile?.fatherMobile || '').toLowerCase();
+                const mName = (st.mother || st.motherName || st.profile?.mother || '').toLowerCase();
+                const mPhone = (st.motherMobile || st.profile?.motherMobile || '').toLowerCase();
+
+                return sName.includes(sTerm) ||
+                    sAdm.includes(sTerm) ||
+                    fName.includes(sTerm) ||
+                    fPhone.includes(sTerm) ||
+                    mName.includes(sTerm) ||
+                    mPhone.includes(sTerm);
+            });
             const matchesFee = String(g.fee || '').includes(sTerm);
             matchSearch = matchesMember || matchesFee;
         }
@@ -6444,7 +6452,25 @@ const renderStudentGroups = () => {
             const studentName = escapeHtml(student.name || '-');
             const studentClass = escapeHtml(student.class || '--');
             const admNo = escapeHtml(student.adm || '-');
-            const guardianInfo = student.fatherName || student.parentPhone || student.phone || '-';
+
+            const fatherName = (student.father || student.fatherName || student.profile?.father || '').trim();
+            const fatherPhone = (student.mobile || student.fatherMobile || student.parentPhone || student.phone || student.profile?.fatherMobile || '').trim();
+            const motherName = (student.mother || student.motherName || student.profile?.mother || '').trim();
+            const motherPhone = (student.motherMobile || student.profile?.motherMobile || '').trim();
+
+            let parentRole = '';
+            let parentDisplayName = '';
+            let parentDisplayPhone = '';
+
+            if (fatherName || fatherPhone) {
+                parentRole = 'Father';
+                parentDisplayName = fatherName;
+                parentDisplayPhone = fatherPhone;
+            } else if (motherName || motherPhone) {
+                parentRole = 'Mother';
+                parentDisplayName = motherName;
+                parentDisplayPhone = motherPhone;
+            }
 
             return `
                 <tr class="hover:bg-blue-50/40 transition-colors">
@@ -6462,8 +6488,16 @@ const renderStudentGroups = () => {
                             ${admNo}
                         </span>
                     </td>
-                    <td class="py-2.5 px-3 text-gray-500 text-xs truncate max-w-[160px]" title="${escapeHtml(guardianInfo)}">
-                        ${escapeHtml(guardianInfo)}
+                    <td class="py-2.5 px-3 text-xs">
+                        ${parentDisplayName || parentDisplayPhone ? `
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${parentRole === 'Father' ? 'bg-sky-50 text-sky-800 border border-sky-200' : 'bg-purple-50 text-purple-800 border border-purple-200'}">
+                                    <i class="fas ${parentRole === 'Father' ? 'fa-male' : 'fa-female'} text-[9px]"></i> ${parentRole}
+                                </span>
+                                <span class="font-bold text-gray-800">${escapeHtml(parentDisplayName || '-')}</span>
+                                ${parentDisplayPhone ? `<span class="text-gray-500 font-mono text-[11px]"><i class="fas fa-phone-alt text-[9px] text-gray-400 mr-0.5"></i>${escapeHtml(parentDisplayPhone)}</span>` : ''}
+                            </div>
+                        ` : `<span class="text-gray-400 italic">--</span>`}
                     </td>
                 </tr>
             `;
@@ -6510,7 +6544,7 @@ const renderStudentGroups = () => {
                                 <th class="py-2 px-3">Student Name</th>
                                 <th class="py-2 px-3 text-center">Class</th>
                                 <th class="py-2 px-3 text-center">Adm No</th>
-                                <th class="py-2 px-3">Guardian / Phone</th>
+                                <th class="py-2 px-3">Parent (Father / Mother)</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
