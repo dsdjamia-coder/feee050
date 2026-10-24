@@ -2729,7 +2729,7 @@ window.toggleStaffStatus = async (id, nextState) => {
 
 // --- 2. ADD STUDENTS ---
 window.downloadCSVTemplate = () => {
-    const csvData = "Photo,Class,ID_UID,Name,Father_Name,Mother_Name,Gender,Adm_No,DOB,Adm_Date,Status,Aadhaar,Father_Phone,Mother_Phone,Permanent_Address\n";
+    const csvData = "Student Name,ID/UID,Father's Name,Mother's Name,Gender,Admission Number (Adm. No.),Date of Birth,Date of Admission,Student Status,Aadhaar Number,Father's Phone Number,Mother's Phone Number,Permanent Address\n";
     const blob = new Blob([csvData], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a'); a.setAttribute('hidden', ''); a.setAttribute('href', url); a.setAttribute('download', 'student_upload_template.csv');
@@ -2744,21 +2744,34 @@ let isExcelEditMode = false;
 
 const EXCEL_SCHEMA_FIELDS = [
     { key: 'name', label: 'Student Name *', required: true },
-    { key: 'adm', label: 'Admission No' },
-    { key: 'dob', label: 'Date of Birth (DOB)' },
-    { key: 'admDate', label: 'Admission Date' },
-    { key: 'gender', label: 'Gender' },
-    { key: 'uid', label: 'ID / UID / Roll No' },
+    { key: 'uid', label: 'ID/UID' },
     { key: 'father', label: "Father's Name" },
     { key: 'mother', label: "Mother's Name" },
-    { key: 'mobile', label: 'Father Phone / Mobile' },
-    { key: 'motherMobile', label: 'Mother Phone' },
-    { key: 'adhaar', label: 'Aadhaar Number' },
-    { key: 'samastha', label: 'Samastha Reg ID' },
-    { key: 'address', label: 'Permanent Address' },
+    { key: 'gender', label: 'Gender *', required: true },
+    { key: 'adm', label: 'Admission Number (Adm. No.)' },
+    { key: 'dob', label: 'Date of Birth' },
+    { key: 'admDate', label: 'Date of Admission' },
     { key: 'status', label: 'Student Status' },
+    { key: 'adhaar', label: 'Aadhaar Number' },
+    { key: 'mobile', label: "Father's Phone Number" },
+    { key: 'motherMobile', label: "Mother's Phone Number" },
+    { key: 'address', label: 'Permanent Address' },
     { key: 'none', label: '-- Skip / Ignore --' }
 ];
+
+function getDuplicateMappedFields() {
+    const counts = {};
+    excelColumns.forEach(c => {
+        if (c.mappedField && c.mappedField !== 'none') {
+            counts[c.mappedField] = (counts[c.mappedField] || 0) + 1;
+        }
+    });
+    const dupes = new Set();
+    Object.entries(counts).forEach(([k, count]) => {
+        if (count > 1) dupes.add(k);
+    });
+    return dupes;
+}
 
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
@@ -2843,36 +2856,7 @@ function setExcelEditMode(enabled) {
         }
     }
 
-    // Lock/Unlock all column header mapping dropdowns
-    const allDropdowns = document.querySelectorAll('.excel-col-map-dropdown');
-    allDropdowns.forEach(select => {
-        select.disabled = !isExcelEditMode;
-        if (isExcelEditMode) {
-            select.classList.remove('opacity-60', 'cursor-not-allowed', 'pointer-events-none', 'bg-slate-100', 'border-slate-200');
-            select.classList.add('bg-white');
-        } else {
-            select.classList.add('opacity-60', 'cursor-not-allowed', 'pointer-events-none', 'bg-slate-100', 'border-slate-200');
-            select.classList.remove('bg-white');
-        }
-    });
-
-    // Toggle + Add Field button visibility
-    const addColBtn = document.getElementById('excel-add-col-btn');
-    if (addColBtn) {
-        addColBtn.classList.toggle('hidden', !isExcelEditMode);
-    }
-
-    // Lock/Unlock contenteditable on data cells
-    const allCells = document.querySelectorAll('.excel-cell');
-    allCells.forEach(cell => {
-        if (isExcelEditMode) {
-            cell.setAttribute('contenteditable', 'true');
-            cell.classList.add('cursor-text', 'focus:outline-2', 'focus:outline-emerald-500', 'focus:bg-white', 'focus:z-10');
-        } else {
-            cell.removeAttribute('contenteditable');
-            cell.classList.remove('cursor-text', 'focus:outline-2', 'focus:outline-emerald-500', 'focus:bg-white', 'focus:z-10');
-        }
-    });
+    renderExcelPreviewTable();
 }
 
 document.getElementById('excel-edit-mode-switch')?.addEventListener('change', (e) => {
@@ -2882,8 +2866,9 @@ document.getElementById('excel-edit-mode-switch')?.addEventListener('change', (e
 function extractRowFields(rowIdx) {
     const workingRow = excelWorkingRows[rowIdx] || {};
     const extracted = {
-        name: '', adm: '', dob: '', admDate: '', gender: '', uid: '', father: '', mother: '',
-        mobile: '', motherMobile: '', adhaar: '', samastha: '', address: '', status: ''
+        name: '', uid: '', father: '', mother: '', gender: '', adm: '',
+        dob: '', admDate: '', status: '', adhaar: '', mobile: '',
+        motherMobile: '', address: ''
     };
     excelColumns.forEach(c => {
         if (c.mappedField && c.mappedField !== 'none') {
@@ -2905,7 +2890,6 @@ function validateAndBuildStudent(extracted, rowIdx, selectedBulkClass, existingC
     const rawAdmDate = extracted.admDate;
     const admDateVal = normalizeToIsoDate(rawAdmDate);
     const adhaarVal = String(extracted.adhaar || '').trim();
-    const samasthaVal = String(extracted.samastha || '').trim();
     const motherVal = String(extracted.mother || '').trim();
     const motherMobileVal = String(extracted.motherMobile || '').trim();
     const admVal = String(extracted.adm || '').toUpperCase().trim();
@@ -2962,7 +2946,7 @@ function validateAndBuildStudent(extracted, rowIdx, selectedBulkClass, existingC
             fieldStatuses.admDate = { status: 'valid', val: cleanAdmDate };
         } else {
             fieldStatuses.admDate = { status: 'error', val: String(rawAdmDate), reason: 'Invalid date format (will be saved as blank)' };
-            omittedFields.push('Admission Date');
+            omittedFields.push('Date of Admission');
         }
     } else {
         fieldStatuses.admDate = { status: 'blank', val: '' };
@@ -2992,7 +2976,7 @@ function validateAndBuildStudent(extracted, rowIdx, selectedBulkClass, existingC
             fieldStatuses.mobile = { status: 'valid', val: cleanMobile };
         } else {
             fieldStatuses.mobile = { status: 'error', val: mobileVal, reason: 'Invalid Mobile Number (will be skipped)' };
-            omittedFields.push('Father Mobile');
+            omittedFields.push("Father's Phone Number");
         }
     } else {
         fieldStatuses.mobile = { status: 'blank', val: '' };
@@ -3006,13 +2990,12 @@ function validateAndBuildStudent(extracted, rowIdx, selectedBulkClass, existingC
             fieldStatuses.motherMobile = { status: 'valid', val: cleanMotherMobile };
         } else {
             fieldStatuses.motherMobile = { status: 'error', val: motherMobileVal, reason: 'Invalid Mother Mobile Number (will be skipped)' };
-            omittedFields.push('Mother Mobile');
+            omittedFields.push("Mother's Phone Number");
         }
     } else {
         fieldStatuses.motherMobile = { status: 'blank', val: '' };
     }
 
-    fieldStatuses.samastha = samasthaVal ? { status: 'valid', val: samasthaVal } : { status: 'blank', val: '' };
     fieldStatuses.address = addressVal ? { status: 'valid', val: addressVal } : { status: 'blank', val: '' };
 
     const studentObj = {
@@ -3029,7 +3012,8 @@ function validateAndBuildStudent(extracted, rowIdx, selectedBulkClass, existingC
         adhaar: cleanAadhaar,
         mobile: cleanMobile,
         motherMobile: cleanMotherMobile,
-        samastha: samasthaVal,
+        samastha: uidVal,
+        samasthaId: uidVal,
         address: addressVal,
         photoUrl: '',
         academicYear: currentAcademicYear || '',
@@ -3098,12 +3082,23 @@ function recalculateExcelStats() {
     }
     if (statMerge) statMerge.textContent = mergeCount;
 
+    const duplicateFields = getDuplicateMappedFields();
+    const hasDuplicateMapping = duplicateFields.size > 0;
+
     const startBtn = document.getElementById('start-upload-btn');
     const startBtnText = document.getElementById('start-upload-btn-text');
     const skipBtn = document.getElementById('skip-issues-upload-btn');
     const validOnlyCountSpan = document.getElementById('valid-only-count');
 
-    if (validCount === 0) {
+    if (hasDuplicateMapping) {
+        if (startBtn) {
+            startBtn.disabled = true;
+            if (startBtnText) startBtnText.textContent = 'Cannot Upload (Duplicate Column Mapped)';
+        }
+        if (skipBtn) {
+            skipBtn.disabled = true;
+        }
+    } else if (validCount === 0) {
         if (startBtn) {
             startBtn.disabled = true;
             if (startBtnText) startBtnText.textContent = 'Cannot Upload (Missing Names)';
@@ -3145,23 +3140,23 @@ function updateRowDomAfterEdit(rowIdx) {
     if (!s) return;
 
     tr.className = s.hasFatalError 
-        ? 'bg-rose-50/60 hover:bg-rose-100/50 transition-colors' 
+        ? 'bg-red-100 hover:bg-red-200/90 font-semibold text-red-950 border-b border-red-300 transition-colors' 
         : (s.hasOmittedFields 
-            ? 'bg-amber-50/40 hover:bg-amber-100/40 transition-colors' 
+            ? 'bg-amber-100/70 hover:bg-amber-200/70 font-medium text-amber-950 border-b border-amber-300 transition-colors' 
             : (s.isDuplicate 
-                ? 'bg-sky-50/50 hover:bg-sky-100/50 transition-colors' 
-                : 'hover:bg-slate-50 transition-colors'));
+                ? 'bg-blue-100 hover:bg-blue-200/80 font-medium text-blue-950 border-b border-blue-300 transition-colors' 
+                : 'hover:bg-slate-50 transition-colors border-b border-slate-100'));
 
     const statusCell = tr.querySelector('.excel-row-status-cell');
     if (statusCell) {
         if (s.hasFatalError) {
-            statusCell.innerHTML = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-200 text-rose-800" title="${escapeHtml(s.fatalReasons.join(', '))}">FATAL</span>`;
+            statusCell.innerHTML = `<span class="px-2.5 py-1 rounded-md text-[10px] font-black bg-red-600 text-white shadow-xs" title="${escapeHtml(s.fatalReasons.join(', '))}">FATAL</span>`;
         } else if (s.hasOmittedFields) {
-            statusCell.innerHTML = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200" title="Valid student (${s.omittedFields.length} invalid field(s) skipped: ${escapeHtml(s.omittedFields.join(', '))})">READY (${s.omittedFields.length} SKIPPED)</span>`;
+            statusCell.innerHTML = `<span class="px-2.5 py-1 rounded-md text-[10px] font-black bg-amber-500 text-white shadow-xs" title="Valid student (${s.omittedFields.length} invalid field(s) skipped: ${escapeHtml(s.omittedFields.join(', '))})">READY (${s.omittedFields.length} SKIPPED)</span>`;
         } else if (s.isDuplicate) {
-            statusCell.innerHTML = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-200 text-sky-800" title="Matches existing student in this class">EXISTING</span>`;
+            statusCell.innerHTML = `<span class="px-2.5 py-1 rounded-md text-[10px] font-black bg-blue-600 text-white shadow-xs" title="Matches existing student in this class">EXISTING</span>`;
         } else {
-            statusCell.innerHTML = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">READY</span>`;
+            statusCell.innerHTML = `<span class="px-2.5 py-1 rounded-md text-[10px] font-black bg-emerald-600 text-white shadow-xs">READY</span>`;
         }
     }
 
@@ -3172,21 +3167,66 @@ function updateRowDomAfterEdit(rowIdx) {
         if (mappedField && mappedField !== 'none') {
             const fStatus = s.fieldStatuses?.[mappedField];
             if (fStatus?.status === 'error') {
-                td.classList.add('bg-rose-50', 'text-rose-900', 'border-rose-200', 'font-semibold');
-                td.classList.remove('bg-amber-50/60', 'text-amber-800');
+                td.classList.add('bg-red-200', 'text-red-950', 'border-2', 'border-red-500', 'font-black');
+                td.classList.remove('bg-amber-100', 'text-amber-950', 'border-amber-300');
                 td.title = fStatus.reason || 'Invalid data';
             } else if (fStatus?.status === 'blank') {
-                td.classList.add('bg-amber-50/60', 'text-amber-800');
-                td.classList.remove('bg-rose-50', 'text-rose-900', 'border-rose-200', 'font-semibold');
+                td.classList.add('bg-amber-100', 'text-amber-950', 'border', 'border-amber-300', 'font-semibold');
+                td.classList.remove('bg-red-200', 'text-red-950', 'border-2', 'border-red-500', 'font-black');
                 td.title = 'Blank / Not provided';
             } else {
-                td.classList.remove('bg-rose-50', 'text-rose-900', 'border-rose-200', 'font-semibold', 'bg-amber-50/60', 'text-amber-800');
+                td.classList.remove('bg-red-200', 'text-red-950', 'border-2', 'border-red-500', 'font-black', 'bg-amber-100', 'text-amber-950', 'border-amber-300');
                 td.title = '';
             }
         }
     });
 
     recalculateExcelStats();
+}
+
+function openAddFieldModal() {
+    const modal = document.getElementById('excel-add-field-modal');
+    const listContainer = document.getElementById('excel-add-field-list');
+    if (!modal || !listContainer) return;
+
+    const currentlyMapped = new Set(excelColumns.map(c => c.mappedField));
+    const unmappedFields = EXCEL_SCHEMA_FIELDS.filter(f => f.key !== 'none' && !currentlyMapped.has(f.key));
+
+    if (unmappedFields.length === 0) {
+        listContainer.innerHTML = `
+            <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+                <i class="fas fa-check-circle text-emerald-600 text-2xl mb-1.5"></i>
+                <div class="text-xs font-bold text-emerald-900">All 13 Student Fields Present</div>
+                <div class="text-[11px] text-emerald-700 mt-0.5">All 13 student fields from manual entry are already present in the spreadsheet.</div>
+            </div>
+        `;
+    } else {
+        listContainer.innerHTML = unmappedFields.map(field => `
+            <button type="button" class="excel-add-field-option-btn w-full p-2.5 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl text-left transition flex items-center justify-between group cursor-pointer" data-field-key="${field.key}" data-field-label="${escapeHtml(field.label)}">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-xs group-hover:bg-blue-600 group-hover:text-white transition">
+                        <i class="fas fa-plus"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-900">${escapeHtml(field.label)}</div>
+                        <div class="text-[10px] text-slate-500 font-mono">Key: ${field.key}</div>
+                    </div>
+                </div>
+                <span class="text-xs font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition flex items-center gap-1">Add <i class="fas fa-chevron-right text-[10px]"></i></span>
+            </button>
+        `).join('');
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeAddFieldModal() {
+    const modal = document.getElementById('excel-add-field-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
 }
 
 function renderExcelPreviewTable() {
@@ -3199,10 +3239,32 @@ function renderExcelPreviewTable() {
         return;
     }
 
+    const duplicateFields = getDuplicateMappedFields();
+    const hasDuplicateMapping = duplicateFields.size > 0;
+    const duplicateLabels = Array.from(duplicateFields).map(f => {
+        return EXCEL_SCHEMA_FIELDS.find(s => s.key === f)?.label?.replace('*', '').trim() || f;
+    });
+
     const mappedCount = excelColumns.filter(c => c.mappedField && c.mappedField !== 'none').length;
     const skippedCount = excelColumns.length - mappedCount;
 
+    let duplicateAlertHtml = '';
+    if (hasDuplicateMapping) {
+        duplicateAlertHtml = `
+            <div class="p-3 mb-2 bg-red-600 text-white rounded-xl shadow-md flex items-center justify-between gap-3 text-xs font-bold animate-pulse">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-exclamation-triangle text-lg shrink-0"></i>
+                    <div>
+                        <div class="font-black text-sm">Duplicate Column Mapping Detected!</div>
+                        <div class="font-normal text-red-100 text-[11px]">The field(s) <b>${escapeHtml(duplicateLabels.join(', '))}</b> are assigned to multiple columns. Each field can only be assigned once. Highlighted solid red columns must be changed or set to Skip before uploading.</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     let html = `
+        ${duplicateAlertHtml}
         <div class="px-3 py-2 bg-slate-100/90 border-b border-slate-200 text-xs font-semibold text-slate-800 flex flex-wrap justify-between items-center gap-2">
             <div class="flex items-center gap-2">
                 <i class="fas fa-file-spreadsheet text-emerald-600"></i>
@@ -3210,6 +3272,7 @@ function renderExcelPreviewTable() {
                 <span class="text-[11px] font-normal text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
                     ${mappedCount} Columns Mapped, ${skippedCount} Skipped
                 </span>
+                ${hasDuplicateMapping ? '<span class="text-[11px] font-bold text-white bg-red-600 px-2 py-0.5 rounded shadow-2xs">Duplicate Collision</span>' : ''}
             </div>
             <div class="flex items-center gap-2 text-xs">
                 ${isExcelEditMode 
@@ -3226,19 +3289,37 @@ function renderExcelPreviewTable() {
                             <span class="block text-[11px] uppercase tracking-wider text-slate-600">Status</span>
                         </th>
                         ${excelColumns.map(col => {
+                            const isDup = duplicateFields.has(col.mappedField);
                             const isSkipped = col.mappedField === 'none';
-                            const headerBg = isSkipped ? 'bg-slate-50' : 'bg-slate-100';
+                            let headerBg = '';
+                            let selectStyleClass = '';
+
+                            if (isDup) {
+                                headerBg = 'bg-red-600 text-white border-2 border-red-700 shadow-sm';
+                                selectStyleClass = 'bg-red-700 text-white border-2 border-white font-extrabold shadow-sm focus:ring-2 focus:ring-white';
+                            } else if (isSkipped) {
+                                headerBg = 'bg-slate-50 text-slate-500';
+                                selectStyleClass = !isExcelEditMode
+                                    ? 'opacity-60 cursor-not-allowed pointer-events-none bg-slate-100 border-slate-200 text-slate-500'
+                                    : 'border-slate-300 text-slate-600 bg-white font-medium';
+                            } else {
+                                headerBg = 'bg-slate-100 text-slate-800';
+                                selectStyleClass = !isExcelEditMode
+                                    ? 'opacity-60 cursor-not-allowed pointer-events-none bg-slate-100 border-slate-200 text-slate-500'
+                                    : 'border-blue-400 text-blue-900 font-bold bg-white';
+                            }
+
                             const disabledAttr = !isExcelEditMode ? 'disabled' : '';
-                            const selectStyleClass = !isExcelEditMode
-                                ? 'opacity-60 cursor-not-allowed pointer-events-none bg-slate-100 border-slate-200 text-slate-500'
-                                : (isSkipped ? 'border-slate-300 text-slate-500 bg-white' : 'border-blue-400 text-blue-900 font-semibold bg-white');
+
                             return `
-                                <th class="p-2 border-b border-r ${headerBg} min-w-[155px] max-w-[220px]">
+                                <th class="p-2 border-b border-r ${headerBg} min-w-[165px] max-w-[230px]">
                                     <div class="flex items-center justify-between gap-1 mb-1">
-                                        <span class="text-[11px] font-mono text-slate-700 truncate" title="${escapeHtml(col.header)}">
+                                        <span class="text-[11px] font-mono ${isDup ? 'text-white font-extrabold' : 'text-slate-700'} truncate" title="${escapeHtml(col.header)}">
                                             ${escapeHtml(col.header)}
                                         </span>
-                                        ${isSkipped ? '<span class="text-[9px] px-1 bg-slate-200 text-slate-600 rounded">SKIP</span>' : ''}
+                                        ${isDup 
+                                            ? '<span class="text-[9px] px-1.5 py-0.5 bg-white text-red-700 font-black rounded uppercase shadow-xs flex items-center gap-1"><i class="fas fa-exclamation-circle"></i> DUPLICATE</span>' 
+                                            : (isSkipped ? '<span class="text-[9px] px-1 bg-slate-200 text-slate-600 rounded">SKIP</span>' : '')}
                                     </div>
                                     <select class="excel-col-map-dropdown w-full p-1 border ${selectStyleClass} rounded text-[11px] shadow-2xs focus:ring-1 focus:ring-blue-500" data-col-id="${col.id}" ${disabledAttr}>
                                         ${EXCEL_SCHEMA_FIELDS.map(f => `
@@ -3251,7 +3332,7 @@ function renderExcelPreviewTable() {
                             `;
                         }).join('')}
                         <th class="p-2 border-b bg-slate-100 text-center w-28">
-                            <button type="button" id="excel-add-col-btn" class="${!isExcelEditMode ? 'hidden' : ''} px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded text-xs font-semibold whitespace-nowrap transition flex items-center gap-1 mx-auto shadow-2xs">
+                            <button type="button" id="excel-add-col-btn" class="${!isExcelEditMode ? 'hidden' : ''} px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded text-xs font-semibold whitespace-nowrap transition flex items-center gap-1 mx-auto shadow-2xs cursor-pointer">
                                 <i class="fas fa-plus-circle text-blue-600"></i> Add Field
                             </button>
                         </th>
@@ -3260,26 +3341,26 @@ function renderExcelPreviewTable() {
                 <tbody class="divide-y divide-slate-100 font-sans">
                     ${excelParsedData.map((s, idx) => {
                         const workingRow = excelWorkingRows[idx] || {};
-                        let rowBg = 'hover:bg-slate-50';
+                        let rowBg = 'hover:bg-slate-50 border-b border-slate-100';
                         let statusBadge = '';
                         
                         if (s.hasFatalError) {
-                            rowBg = 'bg-rose-50/60 hover:bg-rose-100/50';
-                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-200 text-rose-800" title="${escapeHtml(s.fatalReasons.join(', '))}">FATAL</span>`;
+                            rowBg = 'bg-red-100 hover:bg-red-200/90 font-semibold text-red-950 border-b border-red-300';
+                            statusBadge = `<span class="px-2.5 py-1 rounded-md text-[10px] font-black bg-red-600 text-white shadow-xs" title="${escapeHtml(s.fatalReasons.join(', '))}">FATAL</span>`;
                         } else if (s.hasOmittedFields) {
-                            rowBg = 'bg-amber-50/40 hover:bg-amber-100/40';
-                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200" title="Valid student (${s.omittedFields.length} invalid field(s) skipped: ${escapeHtml(s.omittedFields.join(', '))})">READY (${s.omittedFields.length} SKIPPED)</span>`;
+                            rowBg = 'bg-amber-100/70 hover:bg-amber-200/70 font-medium text-amber-950 border-b border-amber-300';
+                            statusBadge = `<span class="px-2.5 py-1 rounded-md text-[10px] font-black bg-amber-500 text-white shadow-xs" title="Valid student (${s.omittedFields.length} invalid field(s) skipped: ${escapeHtml(s.omittedFields.join(', '))})">READY (${s.omittedFields.length} SKIPPED)</span>`;
                         } else if (s.isDuplicate) {
-                            rowBg = 'bg-sky-50/50 hover:bg-sky-100/50';
-                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-200 text-sky-800" title="Matches existing student in this class">EXISTING</span>`;
+                            rowBg = 'bg-blue-100 hover:bg-blue-200/80 font-medium text-blue-950 border-b border-blue-300';
+                            statusBadge = `<span class="px-2.5 py-1 rounded-md text-[10px] font-black bg-blue-600 text-white shadow-xs" title="Matches existing student in this class">EXISTING</span>`;
                         } else {
-                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">READY</span>`;
+                            statusBadge = `<span class="px-2.5 py-1 rounded-md text-[10px] font-black bg-emerald-600 text-white shadow-xs">READY</span>`;
                         }
 
                         return `
                             <tr id="excel-preview-row-${idx}" class="${rowBg} transition-colors">
-                                <td class="p-2 text-center text-slate-400 border-b border-r border-slate-100 font-mono text-xs">${idx + 1}</td>
-                                <td class="excel-row-status-cell p-2 border-b border-r border-slate-100 text-center whitespace-nowrap">${statusBadge}</td>
+                                <td class="p-2 text-center text-slate-500 border-b border-r border-slate-200 font-mono text-xs">${idx + 1}</td>
+                                <td class="excel-row-status-cell p-2 border-b border-r border-slate-200 text-center whitespace-nowrap">${statusBadge}</td>
                                 ${excelColumns.map(col => {
                                     const val = workingRow[col.id] !== undefined && workingRow[col.id] !== null ? String(workingRow[col.id]) : '';
                                     const isSkipped = col.mappedField === 'none';
@@ -3292,23 +3373,23 @@ function renderExcelPreviewTable() {
                                     } else {
                                         const fStatus = s.fieldStatuses?.[col.mappedField];
                                         if (fStatus?.status === 'error') {
-                                            bgClass = 'bg-rose-50 text-rose-900 border-rose-200 font-semibold';
+                                            bgClass = 'bg-red-200 text-red-950 border-2 border-red-500 font-black';
                                             titleAttr = `title="${escapeHtml(fStatus.reason || 'Invalid data')}"`;
                                         } else if (fStatus?.status === 'blank' || !val.trim()) {
-                                            bgClass = 'bg-amber-50/60 text-amber-800';
+                                            bgClass = 'bg-amber-100 text-amber-950 border border-amber-300 font-semibold';
                                             titleAttr = 'title="Blank / Not provided"';
                                         }
                                     }
 
                                     const editAttrs = isExcelEditMode 
                                         ? 'contenteditable="true" class="excel-cell p-2 border-b border-r border-slate-200 whitespace-nowrap cursor-text focus:outline focus:outline-2 focus:outline-emerald-500 focus:bg-white focus:z-10 transition-all font-mono text-xs ' + bgClass + '"'
-                                        : 'class="excel-cell p-2 border-b border-r border-slate-100 whitespace-nowrap text-xs ' + bgClass + '"';
+                                        : 'class="excel-cell p-2 border-b border-r border-slate-200 whitespace-nowrap text-xs ' + bgClass + '"';
 
-                                    const displayVal = val.trim() ? escapeHtml(val) : '<span class="text-slate-300 font-normal">--</span>';
+                                    const displayVal = val.trim() ? escapeHtml(val) : '';
 
                                     return `<td ${editAttrs} data-row-idx="${idx}" data-col-id="${col.id}" ${titleAttr}>${displayVal}</td>`;
                                 }).join('')}
-                                <td class="p-2 border-b border-slate-100 bg-slate-50/30"></td>
+                                <td class="p-2 border-b border-slate-200 bg-slate-50/30"></td>
                             </tr>
                         `;
                     }).join('')}
@@ -3352,20 +3433,19 @@ function handleExcelFile(file) {
 
             const normalizeHeader = (value = '') => value.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
             const aliasMap = {
-                uid: ['iduid', 'id', 'uid', 'rollno', 'rollnumber', 'roll'],
                 name: ['name', 'studentname', 'student', 'fullname', 'nameofstudent'],
-                father: ['fathername', 'father', 'parent', 'fatherguardian', 'guardian', 'fatherguardiansname'],
-                mother: ['mother', 'mothername'],
+                uid: ['iduid', 'id', 'uid', 'samastha', 'samasthaid', 'samasthano', 'regno', 'registrationno', 'rollno', 'rollnumber', 'roll', 'studentid'],
+                father: ['fathersname', 'fathername', 'father', 'parent', 'fatherguardian', 'guardian', 'fatherguardiansname'],
+                mother: ['mothersname', 'mothername', 'mother'],
                 gender: ['gender', 'sex'],
-                status: ['status', 'state'],
-                mobile: ['mobile', 'phone', 'mobileno', 'phonenumber', 'fatherphone', 'fatherphonenumber', 'contact', 'contactno', 'whatsapp'],
-                motherMobile: ['mothermobile', 'motherphone', 'motherphonenumber'],
-                adm: ['admno', 'admissionno', 'admissionnumber', 'adm', 'admn', 'admno.', 'admnumber'],
-                address: ['permanentaddress', 'address', 'permanent', 'addr', 'residentialaddress'],
+                adm: ['admno', 'admissionno', 'admissionnumber', 'adm', 'admn', 'admno.', 'admnumber', 'admissionnum'],
                 dob: ['dob', 'dateofbirth', 'birthdate', 'birth', 'studentdob', 'dobddmmyyyy', 'dateofbirthddmmyyyy'],
                 admDate: ['admdate', 'dateofadmission', 'admissiondate', 'admnsdate', 'admldate', 'joiningdate', 'admissiondateddmmyyyy', 'admdateddmmyyyy', 'doj'],
-                adhaar: ['aadhaar', 'adhaar', 'aadharno', 'aadhaarnumber', 'adhaarnumber', 'uidai', 'aadharno.'],
-                samastha: ['samastha', 'samasthaid', 'samasthano', 'regno', 'registrationno']
+                status: ['studentstatus', 'status', 'state'],
+                adhaar: ['aadhaar', 'adhaar', 'aadharno', 'aadhaarnumber', 'adhaarnumber', 'uidai', 'aadharno.', 'aadhaarno'],
+                mobile: ['fathersphonenumber', 'fathersphone', 'fatherphone', 'mobile', 'phone', 'mobileno', 'phonenumber', 'contact', 'contactno', 'whatsapp'],
+                motherMobile: ['mothersphonenumber', 'mothersphone', 'mothermobile', 'motherphone', 'motherphonenumber'],
+                address: ['permanentaddress', 'address', 'permanent', 'addr', 'residentialaddress']
             };
 
             const detectedHeaders = [];
@@ -3470,27 +3550,37 @@ if (excelTableContainer) {
 
     excelTableContainer.addEventListener('click', (e) => {
         const addColBtn = e.target.closest('#excel-add-col-btn');
-        if (!addColBtn) return;
-        const currentlyMapped = new Set(excelColumns.map(c => c.mappedField));
-        const availableFields = EXCEL_SCHEMA_FIELDS.filter(f => f.key !== 'none' && !currentlyMapped.has(f.key));
-        
-        let fieldToChoose = 'none';
-        if (availableFields.length > 0) {
-            fieldToChoose = availableFields[0].key;
+        if (addColBtn) {
+            openAddFieldModal();
         }
-        const newColId = `col_${Date.now()}`;
-        const newColHeader = availableFields.length > 0 ? availableFields[0].label.replace('*', '').trim() : 'Custom Field';
-        excelColumns.push({
-            id: newColId,
-            header: newColHeader,
-            mappedField: fieldToChoose
-        });
-        excelWorkingRows.forEach(r => {
-            r[newColId] = '';
-        });
-        rebuildAllExcelDataAndRender();
     });
 }
+
+// Wire Excel Add Field modal options & close controls
+document.getElementById('excel-add-field-close-btn')?.addEventListener('click', closeAddFieldModal);
+document.getElementById('excel-add-field-cancel-btn')?.addEventListener('click', closeAddFieldModal);
+
+document.getElementById('excel-add-field-list')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.excel-add-field-option-btn');
+    if (!btn) return;
+    const fieldKey = btn.dataset.fieldKey;
+    const fieldLabel = btn.dataset.fieldLabel || fieldKey;
+    if (!fieldKey) return;
+
+    const newColId = `col_${Date.now()}`;
+    const newColHeader = fieldLabel.replace('*', '').trim();
+    excelColumns.push({
+        id: newColId,
+        header: newColHeader,
+        mappedField: fieldKey
+    });
+    excelWorkingRows.forEach(r => {
+        r[newColId] = '';
+    });
+    closeAddFieldModal();
+    rebuildAllExcelDataAndRender();
+    showToast?.(`Column for "${newColHeader}" added to spreadsheet.`, 'success');
+});
 
 document.getElementById('cancel-upload-btn').addEventListener('click', () => {
     fileInput.value = '';

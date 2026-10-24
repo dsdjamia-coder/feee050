@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan to replace push-button with a modern iOS/Tailwind Toggle Switch for Edit & Mapping Mode, and ensure column mapping dropdowns and cell editing are strictly locked unless the toggle switch is ON.",
-  "updatedAt":  "2026-10-23T06:09:41.873252444Z",
+  "summary":  "Comprehensive implementation plan to refine Excel bulk student upload in admin portal: align mapping schema with exact 13 manual Add Student form fields (merging UID/Samastha Reg ID duplicate, omitting Class and Photo), add duplicate column mapping detection with high-visibility solid red alert, upgrade validation styling to rich vibrant high-contrast colors, implement an interactive \"+ Add Field\" modal/dropdown to add unmapped columns, and render blank cells cleanly without dashes.",
+  "updatedAt":  "2026-10-24T00:32:41.037066204Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -605,11 +605,12 @@
                         </div>
 
                         <!-- Legend -->
-                        <div class="flex flex-wrap items-center gap-4 text-xs text-slate-600 px-2 py-1.5 bg-slate-50/80 rounded border border-slate-100 mb-2">
-                            <span class="font-bold text-slate-700">Color Indicators:</span>
-                            <span class="flex items-center gap-1.5"><span class="w-3.5 h-3.5 rounded bg-amber-100 border border-amber-300 inline-block"></span> Yellow: Missing / Blank Field</span>
-                            <span class="flex items-center gap-1.5"><span class="w-3.5 h-3.5 rounded bg-rose-100 border border-rose-300 inline-block"></span> Red: Error / Mandatory Missing / Invalid Date</span>
-                            <span class="flex items-center gap-1.5"><span class="w-3.5 h-3.5 rounded bg-sky-100 border border-sky-300 inline-block"></span> Blue: Existing Student Match (Merge Candidate)</span>
+                        <div class="flex flex-wrap items-center gap-4 text-xs text-slate-700 px-3 py-2 bg-slate-100 rounded-lg border border-slate-200 mb-2">
+                            <span class="font-bold text-slate-900">Color Indicators:</span>
+                            <span class="flex items-center gap-1.5 font-semibold"><span class="w-3.5 h-3.5 rounded bg-amber-400 border border-amber-500 inline-block"></span> Amber/Yellow: Missing / Blank Field</span>
+                            <span class="flex items-center gap-1.5 font-semibold"><span class="w-3.5 h-3.5 rounded bg-red-600 border border-red-700 inline-block"></span> Red: Error / Missing Name / Invalid Date</span>
+                            <span class="flex items-center gap-1.5 font-semibold"><span class="w-3.5 h-3.5 rounded bg-blue-600 border border-blue-700 inline-block"></span> Blue: Existing Student Match (Merge Candidate)</span>
+                            <span class="flex items-center gap-1.5 font-semibold text-red-700"><span class="w-3.5 h-3.5 rounded bg-red-600 border-2 border-white inline-block"></span> Solid Red Header: Duplicate Mapping Conflict</span>
                         </div>
 
                         <!-- Progress Bar & Status -->
@@ -2962,6 +2963,32 @@
 
             <div class="flex justify-end pt-2 border-t border-slate-100">
                 <button type="button" id="purge-progress-done-btn" class="hidden px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold shadow-sm transition">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Excel Add Field Modal -->
+    <div id="excel-add-field-modal" class="fixed inset-0 popup-overlay items-center justify-center hidden px-4 z-50">
+        <div class="card rounded-2xl shadow-2xl p-5 w-full max-w-md mx-auto bg-white border border-slate-200 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center text-base shrink-0">
+                        <i class="fas fa-plus-circle"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900">Add Field to Spreadsheet</h3>
+                        <p class="text-xs text-slate-500">Select an unmapped field to add as a new column</p>
+                    </div>
+                </div>
+                <button type="button" id="excel-add-field-close-btn" class="text-slate-400 hover:text-slate-600 transition">
+                    <i class="fas fa-times text-base"></i>
+                </button>
+            </div>
+            <div id="excel-add-field-list" class="space-y-2 max-h-72 overflow-y-auto pr-1">
+                <!-- Dynamically populated fields -->
+            </div>
+            <div class="flex justify-end pt-2 border-t border-slate-100">
+                <button type="button" id="excel-add-field-cancel-btn" class="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition">Cancel</button>
             </div>
         </div>
     </div>

@@ -1,112 +1,87 @@
-# Dedicated Toggle Switch & Mode-Locked Column Mapping Architecture
+# Implementation Plan: Excel Bulk Student Upload Refinement
 
-## 1. Overview & Requirements
+Refine the bulk student Excel/CSV upload system in the Admin Portal to match the manual "Add Student" entry fields, prevent duplicate column mappings with high-visibility red indicators, apply vibrant high-contrast status colors, empower the "+ Add Field" button, and display blank cells cleanly without dashed placeholders.
 
-Transform the Excel Edit Mode activation into a **modern iOS-style sliding Toggle Switch** and enforce strict mode locking:
-1. **Real Sliding Toggle Switch**: Replace the button with a toggle switch component (track + sliding thumb + dynamic state label: `OFF` / `ON`).
-2. **Strict Mode Separation**:
-   - **When Switch is OFF (Default)**:
-     - The preview table is in standard clean view.
-     - Column mapping dropdowns are disabled and locked from accidental changes.
-     - Table cells are strictly read-only.
-     - The "+ Add Field" column button is hidden.
-     - Guidance banner is hidden.
-   - **When Switch is ON**:
-     - Column header mapping dropdowns become fully interactive, allowing administrators to re-assign or skip columns.
-     - In-table cell editing activates with `contenteditable="true"` and spreadsheet focus outlines.
-     - The "+ Add Field" button displays.
-     - The active guidance banner displays with real-time editing hints.
+## User Requirements & Problem Analysis
 
----
+1. **Exact 13 Manual Form Fields (No Duplicates)**:
+   - Previously, `EXCEL_SCHEMA_FIELDS` contained 14 fields with separate `ID / UID` and `Samastha Reg ID`. In the Madrasa/school database and manual entry form, UID and Samastha Registration ID refer to the same identifier (`uid`).
+   - `Class` is already selected prior to upload via the target class dropdown, and `Photo` cannot be uploaded via spreadsheet.
+   - The mapping schema must match the exact 13 manual entry input boxes from `admin.html`:
+     1. Student Name * (`name`)
+     2. ID/UID (`uid`)
+     3. Father's Name (`father`)
+     4. Mother's Name (`mother`)
+     5. Gender * (`gender`)
+     6. Admission Number (Adm. No.) (`adm`)
+     7. Date of Birth (`dob`)
+     8. Date of Admission (`admDate`)
+     9. Student Status (`status`)
+     10. Aadhaar Number (`adhaar`)
+     11. Father's Phone Number (`mobile`)
+     12. Mother's Phone Number (`motherMobile`)
+     13. Permanent Address (`address`)
+     + Option for `-- Skip / Ignore --` (`none`).
 
-## 2. Technical Implementation Details
+2. **Duplicate Mapping Prevention with Solid Red Warning**:
+   - If an administrator selects a schema field that is already assigned to another column, both columns will be flagged with solid vibrant red styling (`bg-red-600 text-white font-bold`, red border, and a prominent badge `DUPLICATE MAPPING`).
+   - A warning banner will explain the collision, and the upload buttons ("Upload All" / "Upload Valid Only") will be safely disabled until duplicate assignments are resolved.
 
-### A. Toggle Switch Component (`admin.html`)
-Replace the push button `#excel-edit-mode-toggle-btn` with a Tailwind toggle switch:
-```html
-<label for="excel-edit-mode-switch" class="inline-flex items-center gap-2.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-slate-400 rounded-lg cursor-pointer shadow-xs select-none transition">
-    <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-        <i class="fas fa-sliders-h text-emerald-600"></i>
-        <span>Edit & Mapping Mode</span>
-    </span>
-    <!-- Sliding Switch -->
-    <div class="relative inline-flex items-center cursor-pointer">
-        <input type="checkbox" id="excel-edit-mode-switch" class="sr-only peer">
-        <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
-    </div>
-    <span id="excel-edit-mode-status" class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">OFF</span>
-</label>
-```
+3. **Vibrant & Bold Color Palette (കടും നിറങ്ങൾ)**:
+   - Replace pale/washed-out pastel backgrounds (`bg-rose-50`, `bg-amber-50`, `bg-sky-50`) with rich, high-contrast colors:
+     - **Fatal Errors / Missing Name**: Vivid red highlight (`bg-red-100 border-2 border-red-500 text-red-950 font-bold`, with badge `bg-red-600 text-white font-black`).
+     - **Missing / Skipped Optional Fields**: Deep vibrant amber/yellow highlight (`bg-amber-100 border border-amber-400 text-amber-950 font-semibold`, badge `bg-amber-600 text-white font-bold`).
+     - **Existing Student in Class**: Bold sky/blue highlight (`bg-blue-100 border border-blue-400 text-blue-950 font-semibold`, badge `bg-blue-600 text-white font-bold`).
+     - **Valid Student**: Crisp emerald badge `bg-emerald-600 text-white font-bold`.
 
-### B. Mode Control in JavaScript (`scripts/pages/admin-page.js`)
-1. **Switch Event**:
-   - Listen to `change` event on `#excel-edit-mode-switch`.
-   - Call `setExcelEditMode(switchElement.checked)`.
-2. **`setExcelEditMode(enabled)` Behavior**:
-   - Updates `isExcelEditMode = enabled`.
-   - Updates status label text (`OFF` vs `ON`) and color (`text-slate-500` vs `text-emerald-700`).
-   - Toggles guidance banner.
-   - Enables or disables all `.excel-col-map-dropdown` elements (`select.disabled = !isExcelEditMode`).
-   - Toggles `.excel-add-col-btn` visibility.
-   - Toggles `contenteditable="true"` on `.excel-cell` elements.
-3. **Table Render (`renderExcelPreviewTable`)**:
-   - When rendering headers, if `!isExcelEditMode`:
-     - Dropdowns render with `disabled` and clean locked styling.
-     - "+ Add Field" button rendered as hidden.
-   - When `isExcelEditMode`:
-     - Dropdowns render enabled and prominent.
-     - "+ Add Field" button rendered as visible.
+4. **Interactive "+ Add Field" Feature**:
+   - When the "+ Add Field" button is clicked in Edit Mode, it will open a clean dropdown/modal menu showing available unmapped fields.
+   - Selecting a field immediately inserts a new column into the spreadsheet, binds it to the chosen schema field, and allows the admin to type values directly into the table cells.
+   - If all 13 fields are already mapped, it politely informs the user that all schema fields are present.
+
+5. **Clean Blank Cell Rendering**:
+   - Remove `--` placeholders from empty cells. Blank cells will render as completely clean empty strings `""`, allowing clean viewing and natural cell text editing.
 
 ---
 
-## 3. Affected Files
+## Proposed Changes
 
-1. **`admin.html`**:
-   - Replace button with sliding toggle switch structure.
-2. **`scripts/pages/admin-page.js`**:
-   - Wire `#excel-edit-mode-switch` change event.
-   - Enforce mode lock on header dropdowns, cells, and add-field buttons.
+### 1. `scripts/pages/admin-page.js`
+- **Schema & Aliases**:
+  - Update `EXCEL_SCHEMA_FIELDS` to exactly 13 fields matching the manual form input labels word-for-word.
+  - Update `aliasMap` to merge `samastha`, `samasthaid`, `regno`, `uid`, `id` into the single target key `uid`.
+  - Exclude `samastha` as a standalone field in validation, payload building, and CSV template.
+- **Duplicate Mapping Detection**:
+  - Add `getDuplicateMappings()` helper to inspect `excelColumns` and count occurrences of mapped fields.
+  - Highlight colliding column headers in solid red (`bg-red-600 text-white border-red-700`).
+  - Block submission when duplicates exist and display a prominent warning banner.
+- **Vibrant Styling**:
+  - Upgrade table row and cell CSS classes from pale pastels to bold high-contrast colors.
+  - Update row status badges to rich solid colors.
+- **"+ Add Field" Interactive Menu**:
+  - Provide a modal/popup menu with unmapped fields upon clicking "+ Add Field".
+  - Insert chosen column into `excelColumns` and initialize in all `excelWorkingRows`.
+- **Blank Cells**:
+  - Render empty string `""` instead of `<span ...>--</span>`.
 
----
-
-## 4. Risks & Mitigations
-
-- **Risk**: User accidentally changes a column mapping while scrolling.
-  - **Mitigation**: With the switch OFF by default, all dropdowns are strictly disabled and locked against accidental clicks.
-- **Risk**: Toggle state desyncing after cancel/reset.
-  - **Mitigation**: Reset explicitly sets `excelEditModeSwitch.checked = false` and invokes `setExcelEditMode(false)`.
-
----
-
-## 5. Verification & Testing Plan
-
-1. **Visual Switch Test**:
-   - Verify that the toggle switch animates smoothly between OFF and ON.
-2. **Locking Test (When Switch is OFF)**:
-   - Verify that table cells cannot be edited or typed into.
-   - Verify that column header dropdowns are disabled and cannot be changed.
-   - Verify that "+ Add Field" is hidden.
-3. **Activation Test (When Switch is ON)**:
-   - Verify that column dropdowns can be changed and re-map the data instantly.
-   - Verify that cells can be edited and dynamically re-validate rows.
-   - Verify that "+ Add Field" is clickable.
-4. **Build & Lint Verification**:
-   - Run `compile_applet` and `lint_applet` to confirm zero errors.
+### 2. `admin.html`
+- Ensure bulk upload CSV template download reflects the updated 13 fields.
 
 ---
 
-## 6. Implementation Status & Verification Results
+## Verification Plan
 
-- [x] **Sliding Toggle Switch UI (`admin.html`)**: Replaced push-button with a sliding toggle switch (`#excel-edit-mode-switch`) with smooth sliding thumb and dynamic status indicator (`OFF` / `ON`).
-- [x] **Strict OFF State Locking (`scripts/pages/admin-page.js`)**:
-  - When switch is OFF: Preview table renders in standard clean view.
-  - Column mapping dropdowns are disabled and locked (`disabled` attribute + `pointer-events-none opacity-60`).
-  - Table cells are completely read-only (`removeAttribute('contenteditable')`).
-  - `+ Add Field` button is hidden.
-  - Subtitle shows `"Standard View (Turn ON switch above to edit cells or remap headers)"`.
-- [x] **Active ON State Capabilities (`scripts/pages/admin-page.js`)**:
-  - When switch is toggled ON: Column mapping dropdowns unlock and allow full re-mapping.
-  - Table cells activate spreadsheet editing (`contenteditable="true"` with cursor and green focus rings).
-  - `+ Add Field` button becomes visible and active.
-  - Live guidance banner displays.
-- [x] **Compilation & Lint Verification**: Both `compile_applet` and `lint_applet` (`tsc --noEmit`) succeeded with 0 errors.
+1. **Compilation & Linting**:
+   - Run `compile_applet` and `lint_applet` (`tsc --noEmit`) to verify 0 syntax or type errors.
+2. **Schema Verification**:
+   - Confirm dropdown contains exactly the 13 fields from the manual form plus `-- Skip / Ignore --`.
+3. **Duplicate Detection Test**:
+   - Map two columns to "Student Name *" or "Father's Name".
+   - Confirm both headers turn solid red with duplicate warning tag and upload buttons are disabled.
+   - Change one column to `-- Skip / Ignore --` or another field; verify red alert clears and upload re-enables.
+4. **Visual Contrast Test**:
+   - Confirm fatal error cells/rows are solid high-contrast red.
+   - Confirm blank optional cells are deep amber.
+   - Confirm blank cells have no `--` marks.
+5. **Add Field Test**:
+   - Click "+ Add Field" in edit mode; confirm unmapped fields dropdown appears and newly added column works seamlessly.
