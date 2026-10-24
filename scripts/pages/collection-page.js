@@ -4160,11 +4160,21 @@ const loadMoreHistory = (renderToken = historyRenderToken) => {
                 <td class="p-3 text-gray-600">${new Date(i.dt).toLocaleDateString('en-GB')}</td>
                 <td class="p-3 font-medium text-blue-700">${escapeHtml(primaryStudentLabel)}${otherStudentRows.length ? `<span class="text-[10px] text-gray-500 block mt-1">${otherStudentRows.map((row) => escapeHtml(row)).join('<br>')}</span>` : ''}</td>
                 <td class="p-3"><span class="text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 whitespace-nowrap">${i.by}</span></td>
-                <td class="p-3 text-center text-gray-600">${isDonationRow ? 'Donation' : i.i.length}</td>
+                <td class="p-3 text-center">
+                    <button type="button" class="view-history-breakdown-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${isDonationRow ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'} transition cursor-pointer shadow-2xs" data-tid="${escapeHtml(i.tId)}" data-sid="${escapeHtml(i.sId || '')}" title="Click to view fee breakdown">
+                        <span>${isDonationRow ? 'Donation' : `${i.i.length} ${i.i.length === 1 ? 'Item' : 'Items'}`}</span>
+                        <i class="fas fa-list-check text-[10px]"></i>
+                    </button>
+                </td>
                 <td class="p-3 font-bold text-gray-800">${totalLabel}</td>
-                <td class="p-3 text-center">${isDonationRow
-                    ? `<button class="donation-edit-btn text-blue-500 hover:text-blue-700 mr-3" data-id="${i.tId.replace('donation:', '')}"><i class="fas fa-edit"></i></button><button class="donation-del-btn text-red-500 hover:text-red-700" data-id="${i.tId.replace('donation:', '')}"><i class="fas fa-trash"></i></button>`
-                    : `<button class="edit-payment-btn text-blue-500 hover:text-blue-700 mr-3" data-sid="${i.sId}" data-tid="${i.tId}"><i class="fas fa-edit"></i></button><button class="delete-payment-btn text-red-500 hover:text-red-700" data-sid="${i.sId}" data-tid="${i.tId}"><i class="fas fa-trash"></i></button>`}</td>
+                <td class="p-3 text-center whitespace-nowrap">
+                    <button type="button" class="view-history-breakdown-btn text-emerald-600 hover:text-emerald-800 mr-2.5 transition" data-tid="${escapeHtml(i.tId)}" data-sid="${escapeHtml(i.sId || '')}" title="View Items Breakdown">
+                        <i class="fas fa-list-check"></i>
+                    </button>
+                    ${isDonationRow
+                    ? `<button class="donation-edit-btn text-blue-500 hover:text-blue-700 mr-2.5" data-id="${i.tId.replace('donation:', '')}" title="Edit Donation"><i class="fas fa-edit"></i></button><button class="donation-del-btn text-red-500 hover:text-red-700" data-id="${i.tId.replace('donation:', '')}" title="Delete Donation"><i class="fas fa-trash"></i></button>`
+                    : `<button class="edit-payment-btn text-blue-500 hover:text-blue-700 mr-2.5" data-sid="${i.sId}" data-tid="${i.tId}" title="Edit Payment"><i class="fas fa-edit"></i></button><button class="delete-payment-btn text-red-500 hover:text-red-700" data-sid="${i.sId}" data-tid="${i.tId}" title="Delete Payment"><i class="fas fa-trash"></i></button>`}
+                </td>
             </tr>`;
         });
         tbody.insertAdjacentHTML('beforeend', html);
@@ -4180,8 +4190,316 @@ document.getElementById('history-content-container').addEventListener('scroll', 
     }
 });
 
+// History Items Breakdown Modal Logic
+const showPaymentHistoryBreakdown = (txnId = '', fallbackStudentId = '') => {
+    const modal = document.getElementById('history-items-breakdown-modal');
+    const contentEl = document.getElementById('history-breakdown-content');
+    const editBtn = document.getElementById('history-breakdown-edit-btn');
+    if (!modal || !contentEl) return;
+
+    // Handle Donation entries
+    if (txnId.startsWith('donation:')) {
+        const donationId = txnId.replace('donation:', '');
+        const donation = allDonations.find((d) => d.id === donationId);
+        if (!donation) {
+            alert('Donation record not found.');
+            return;
+        }
+
+        const collName = getStaffName(donation.collectedBy, donation.collectedByName);
+        const formattedDate = donation.paymentDate ? new Date(donation.paymentDate).toLocaleDateString('en-GB') : '-';
+        const amountVal = Number(donation.amount || 0);
+
+        contentEl.innerHTML = `
+            <div class="bg-amber-50/80 border border-amber-200 rounded-xl p-3 flex items-center justify-between shadow-2xs">
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-amber-800 flex items-center gap-1">
+                        <i class="fas fa-hand-holding-heart text-[10px]"></i> Donation Receipt
+                    </div>
+                    <div class="font-black text-amber-950 text-base font-mono">#${escapeHtml(donation.receiptNo ? String(donation.receiptNo) : 'AUTO')}</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[10px] uppercase font-bold text-amber-800">Total Donated</div>
+                    <div class="font-black text-emerald-700 text-lg font-mono">₹${amountVal.toLocaleString('en-IN')}</div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 space-y-3 shadow-2xs">
+                <div class="flex items-center gap-2.5 border-b border-slate-100 pb-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-sm">
+                        <i class="fas fa-user-heart"></i>
+                    </div>
+                    <div>
+                        <div class="text-[10px] uppercase font-bold text-slate-400">Donor Name</div>
+                        <div class="font-black text-slate-900 text-sm">${escapeHtml(donation.donorName || 'Anonymous Donor')}</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                        <span class="text-[10px] uppercase font-bold text-slate-400 block">Date</span>
+                        <span class="font-semibold text-slate-800">${escapeHtml(formattedDate)}</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] uppercase font-bold text-slate-400 block">Collected By</span>
+                        <span class="font-semibold text-slate-800">${escapeHtml(collName || 'Staff')}</span>
+                    </div>
+                    ${donation.description ? `
+                    <div class="col-span-2 pt-2 border-t border-slate-100">
+                        <span class="text-[10px] uppercase font-bold text-slate-400 block">Purpose / Note</span>
+                        <span class="font-medium text-slate-700 italic block mt-0.5">${escapeHtml(donation.description)}</span>
+                    </div>` : ''}
+                </div>
+            </div>
+        `;
+
+        if (editBtn) {
+            editBtn.classList.remove('hidden');
+            editBtn.onclick = () => {
+                closeHistoryBreakdownModal();
+                editingDonationId = donation.id;
+                document.getElementById('donation-name').value = donation.donorName || '';
+                document.getElementById('donation-receipt').value = donation.receiptNo || '';
+                document.getElementById('donation-amount').value = donation.amount || '';
+                document.getElementById('donation-date').value = donation.paymentDate || new Date().toISOString().split('T')[0];
+                document.getElementById('donation-description').value = donation.description || '';
+                setupDonationEntryUI();
+                document.querySelector('.nav-link[data-target="donation-page"]')?.click();
+            };
+        }
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        return;
+    }
+
+    // Handle Fee Payments
+    const parsedKey = parsePaymentGroupKey(txnId);
+    const matchingPayments = allPayments.filter((payment) => {
+        if (parsedKey.type === 'transaction') return payment.transactionId === parsedKey.transactionId;
+        if (parsedKey.type === 'receipt') return Number(payment.receiptNo) === parsedKey.receiptNo && (payment.collectedBy || '') === parsedKey.collectedBy;
+        return getPaymentGroupKey(payment) === txnId;
+    });
+
+    if (matchingPayments.length === 0) {
+        contentEl.innerHTML = `<div class="p-8 text-center text-slate-500 font-semibold"><i class="fas fa-circle-exclamation text-xl text-amber-500 mb-2 block"></i>No itemized records found for this receipt.</div>`;
+        if (editBtn) editBtn.classList.add('hidden');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        return;
+    }
+
+    const firstPayment = matchingPayments[0];
+    const receiptNo = firstPayment.receiptNo ? `#${firstPayment.receiptNo}` : 'AUTO / N/A';
+    const paymentDateStr = firstPayment.paymentDate ? new Date(firstPayment.paymentDate).toLocaleDateString('en-GB') : '-';
+    const paymentMode = firstPayment.paymentMode || 'Cash';
+    const collectorName = getStaffName(firstPayment.collectedBy, firstPayment.collectedByName);
+    const paymentDescription = firstPayment.description || '';
+
+    // Calculate grand total accounting for shared billing groups
+    const seenBillingKeys = new Set();
+    let grandTotal = 0;
+    matchingPayments.forEach((p) => {
+        const bKey = getPaymentBillingKey(p);
+        if (!seenBillingKeys.has(bKey)) {
+            seenBillingKeys.add(bKey);
+            grandTotal = roundMoney(grandTotal + getMonthlyReportPaymentAmount(p));
+        }
+    });
+
+    // Group payments by studentId
+    const studentPaymentMap = new Map();
+    matchingPayments.forEach((p) => {
+        const sid = p.studentId || fallbackStudentId || 'unknown';
+        if (!studentPaymentMap.has(sid)) studentPaymentMap.set(sid, []);
+        studentPaymentMap.get(sid).push(p);
+    });
+
+    const studentCount = studentPaymentMap.size;
+    let studentsHtml = '';
+    let studentIndex = 0;
+
+    studentPaymentMap.forEach((paymentsForStudent, sId) => {
+        studentIndex += 1;
+        const student = getStudentById(sId);
+        const studentName = student?.name || paymentsForStudent[0]?.studentName || 'Student';
+        const studentAdm = student?.adm || paymentsForStudent[0]?.studentAdm || '-';
+        const studentClass = student?.class || paymentsForStudent[0]?.classLabel || paymentsForStudent[0]?.studentClass || '-';
+        const studentGender = student?.gender || '';
+        const group = getStudentBillingGroup(sId);
+        const isGroupMember = group && Array.isArray(group.memberIds) && group.memberIds.length > 1;
+
+        // Calculate student's individual items and subtotal
+        const stuSeenKeys = new Set();
+        let studentSubtotal = 0;
+        paymentsForStudent.forEach((p) => {
+            const bKey = getPaymentBillingKey(p);
+            if (!stuSeenKeys.has(bKey)) {
+                stuSeenKeys.add(bKey);
+                studentSubtotal = roundMoney(studentSubtotal + getMonthlyReportPaymentAmount(p));
+            }
+        });
+
+        // Items breakdown table rows
+        const itemRows = paymentsForStudent.map((p) => {
+            const feeItem = feeItems.find((fi) => fi.key === p.itemKey);
+            const rawItemName = feeItem?.name || p.itemName || normalizeFeeItemName(p.itemKey) || p.itemKey;
+            const cleanItemName = normalizeFeeItemName(rawItemName);
+            const itemType = getPaymentItemType(p);
+            const isSharedGroup = Boolean(p.billingGroupId && itemType === 'month');
+            const displayAmount = roundMoney(p.amount || 0);
+
+            return `
+                <tr class="border-b border-slate-100 hover:bg-slate-50/70 transition">
+                    <td class="py-2.5 px-3 font-medium text-slate-800">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="font-bold text-slate-800">${escapeHtml(cleanItemName)}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${itemType === 'month' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-purple-50 text-purple-700 border border-purple-200'}">${itemType === 'month' ? 'Monthly' : 'Custom'}</span>
+                            ${isSharedGroup ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title="Group rate applied"><i class="fas fa-users text-[8px] mr-0.5"></i>Group Rate</span>` : ''}
+                        </div>
+                    </td>
+                    <td class="py-2.5 px-2 text-center text-slate-500 font-medium whitespace-nowrap">${escapeHtml(p.academicYear || '-')}</td>
+                    <td class="py-2.5 px-3 text-right font-black text-slate-900 font-mono">₹${displayAmount.toFixed(0)}</td>
+                </tr>
+            `;
+        }).join('');
+
+        studentsHtml += `
+            <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <!-- Student Card Header -->
+                <div class="bg-gradient-to-r from-slate-50 to-blue-50/40 p-2.5 border-b border-slate-200 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                            <i class="fas fa-user-graduate"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-black text-slate-900 text-xs sm:text-sm truncate flex items-center gap-1.5">
+                                <span>${escapeHtml(studentName)}</span>
+                                ${isGroupMember ? `<span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-bold shrink-0"><i class="fas fa-users text-[8px] mr-0.5"></i>Group Member</span>` : ''}
+                            </div>
+                            <div class="text-[10px] text-slate-500 font-medium flex items-center gap-2 mt-0.5 flex-wrap">
+                                <span>Adm: <b class="text-slate-700 font-mono">${escapeHtml(studentAdm)}</b></span>
+                                <span>•</span>
+                                <span>Class: <b class="text-slate-700">${escapeHtml(studentClass)}</b></span>
+                                ${studentGender ? `<span>•</span><span class="capitalize text-slate-600">${escapeHtml(studentGender)}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <span class="text-[10px] uppercase font-bold text-slate-400 block">${studentCount > 1 ? `Student ${studentIndex} Subtotal` : 'Subtotal'}</span>
+                        <span class="font-black text-blue-700 font-mono text-sm">₹${studentSubtotal.toFixed(0)}</span>
+                    </div>
+                </div>
+
+                <!-- Items Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs text-left">
+                        <thead class="bg-slate-50/80 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                            <tr>
+                                <th class="py-1.5 px-3">Fee Item</th>
+                                <th class="py-1.5 px-2 text-center">Academic Year</th>
+                                <th class="py-1.5 px-3 text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itemRows}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    });
+
+    const summaryHtml = `
+        <div class="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3 flex items-center justify-between shadow-2xs">
+            <div>
+                <div class="text-[10px] uppercase font-bold text-emerald-800 flex items-center gap-1">
+                    <i class="fas fa-receipt text-[10px]"></i> Receipt Number
+                </div>
+                <div class="font-black text-emerald-950 text-base font-mono">${escapeHtml(receiptNo)}</div>
+            </div>
+            <div class="text-right">
+                <div class="text-[10px] uppercase font-bold text-emerald-800">Total Paid</div>
+                <div class="font-black text-emerald-700 text-lg font-mono">₹${grandTotal.toFixed(0)}</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs">
+            <div>
+                <span class="text-[10px] uppercase font-bold text-slate-400 block">Payment Date</span>
+                <span class="font-bold text-slate-800 text-xs">${escapeHtml(paymentDateStr)}</span>
+            </div>
+            <div>
+                <span class="text-[10px] uppercase font-bold text-slate-400 block">Payment Mode</span>
+                <span class="font-bold text-slate-800 text-xs">${escapeHtml(paymentMode)}</span>
+            </div>
+            <div>
+                <span class="text-[10px] uppercase font-bold text-slate-400 block">Students</span>
+                <span class="font-bold text-slate-800 text-xs">${studentCount} ${studentCount === 1 ? 'Student' : 'Students'}</span>
+            </div>
+            <div>
+                <span class="text-[10px] uppercase font-bold text-slate-400 block">Collected By</span>
+                <span class="font-bold text-slate-800 text-xs truncate block" title="${escapeHtml(collectorName)}">${escapeHtml(collectorName || 'Staff')}</span>
+            </div>
+            ${paymentDescription ? `
+            <div class="col-span-2 sm:col-span-4 pt-1.5 border-t border-slate-100">
+                <span class="text-[10px] uppercase font-bold text-slate-400 block">Description:</span>
+                <span class="text-slate-700 italic font-medium">${escapeHtml(paymentDescription)}</span>
+            </div>` : ''}
+        </div>
+    `;
+
+    const multiStudentNotice = studentCount > 1 ? `
+        <div class="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold flex items-center gap-2">
+            <i class="fas fa-users text-blue-600"></i>
+            <span>Combined Multi-Student Receipt (${studentCount} Students Included)</span>
+        </div>
+    ` : '';
+
+    contentEl.innerHTML = summaryHtml + multiStudentNotice + `<div class="space-y-3">${studentsHtml}</div>`;
+
+    if (editBtn) {
+        const primaryStudentId = studentPaymentMap.keys().next().value || fallbackStudentId;
+        editBtn.classList.remove('hidden');
+        editBtn.onclick = () => {
+            closeHistoryBreakdownModal();
+            startEditingPayment(primaryStudentId, txnId);
+        };
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+const closeHistoryBreakdownModal = () => {
+    const modal = document.getElementById('history-items-breakdown-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+};
+
+document.getElementById('history-breakdown-close-x')?.addEventListener('click', closeHistoryBreakdownModal);
+document.getElementById('history-breakdown-close-btn')?.addEventListener('click', closeHistoryBreakdownModal);
+document.getElementById('history-items-breakdown-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'history-items-breakdown-modal') closeHistoryBreakdownModal();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('history-items-breakdown-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+            closeHistoryBreakdownModal();
+        }
+    }
+});
+
 // Event Delegation for dynamically generated history buttons
 document.getElementById('history-content-container').addEventListener('click', e => {
+    const breakdownBtn = e.target.closest('.view-history-breakdown-btn');
+    if (breakdownBtn) {
+        showPaymentHistoryBreakdown(breakdownBtn.dataset.tid, breakdownBtn.dataset.sid);
+        return;
+    }
     const editBtn = e.target.closest('.edit-payment-btn'), delBtn = e.target.closest('.delete-payment-btn');
     const donationEditBtn = e.target.closest('.donation-edit-btn');
     const donationDelBtn = e.target.closest('.donation-del-btn');

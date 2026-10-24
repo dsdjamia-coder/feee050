@@ -1029,6 +1029,42 @@
         </div>
     </div>
 
+    <!-- Payment Items Breakdown Modal -->
+    <div id="history-items-breakdown-modal" class="modal-overlay hidden !p-3 sm:!p-4">
+        <div class="modal-box relative !max-w-lg w-full !p-0 text-left flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl border border-slate-200 bg-white">
+            <!-- Pinned Header -->
+            <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 bg-white shrink-0">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0">
+                        <i class="fas fa-list-check"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-black text-slate-800 leading-tight">Fee Items Breakdown</h3>
+                        <p class="text-[11px] text-slate-500 leading-tight">Payment Receipt & Itemized Details</p>
+                    </div>
+                </div>
+                <button type="button" id="history-breakdown-close-x" class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"><i class="fas fa-times text-base"></i></button>
+            </div>
+
+            <!-- Scrollable Content -->
+            <div id="history-breakdown-content" class="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/60 text-xs">
+                <!-- Content dynamically populated -->
+            </div>
+
+            <!-- Pinned Footer -->
+            <div class="flex items-center justify-between gap-2 px-4 py-3 border-t border-slate-200 bg-white shrink-0">
+                <button type="button" id="history-breakdown-close-btn" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition border border-slate-200 flex items-center gap-1.5">
+                    <i class="fas fa-times text-xs"></i> Close
+                </button>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="history-breakdown-edit-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center gap-1.5">
+                        <i class="fas fa-edit"></i> Edit Payment
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 
 
     <!-- UI Logic Script (For Tabs & Menus) -->
