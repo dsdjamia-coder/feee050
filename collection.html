@@ -602,7 +602,14 @@
                 <div class="card p-5 shadow-sm max-w-3xl mx-auto">
                     <h2 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Donation Entry</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><label class="block text-sm font-semibold mb-1 text-gray-700">Donor Name</label><input type="text" id="donation-name" class="w-full p-2.5 rounded-lg" placeholder="Name"></div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-1 text-gray-700">Donor Name</label>
+                            <div class="relative" id="donation-donor-container">
+                                <input type="text" id="donation-name" class="w-full p-2.5 pr-10 rounded-lg" placeholder="Type donor name or Adm No..." autocomplete="off">
+                                <button id="donation-donor-clear-btn" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 hidden" title="Clear donor name"><i class="fas fa-times text-xs"></i></button>
+                                <div id="donation-donor-suggestions" class="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl hidden max-h-60 overflow-y-auto"></div>
+                            </div>
+                        </div>
                         <div><label class="block text-sm font-semibold mb-1 text-gray-700">Receipt No (Optional)</label><input type="number" id="donation-receipt" class="w-full p-2.5 rounded-lg" placeholder="Receipt number"></div>
                         <div><label class="block text-sm font-semibold mb-1 text-gray-700">Amount (₹)</label><input type="number" id="donation-amount" class="w-full p-2.5 rounded-lg" placeholder="Amount"></div>
                         <div><label class="block text-sm font-semibold mb-1 text-gray-700">Date</label><input type="date" id="donation-date" class="w-full p-2.5 rounded-lg"></div>

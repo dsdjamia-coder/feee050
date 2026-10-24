@@ -1345,12 +1345,121 @@ document.getElementById('save-my-class-btn')?.addEventListener('click', async ()
         });
     });
 
+const updateDonationDonorClearBtn = () => {
+    const donorInput = document.getElementById('donation-name');
+    const clearBtn = document.getElementById('donation-donor-clear-btn');
+    if (!clearBtn) return;
+    if (donorInput && donorInput.value.trim().length > 0) {
+        clearBtn.classList.remove('hidden');
+    } else {
+        clearBtn.classList.add('hidden');
+    }
+};
+
+const populateDonationDonorSuggestions = (searchTerm = '') => {
+    const listEl = document.getElementById('donation-donor-suggestions');
+    if (!listEl) return;
+    const lowerTerm = (searchTerm || '').trim().toLowerCase();
+    if (!lowerTerm) {
+        listEl.classList.add('hidden');
+        listEl.innerHTML = '';
+        return;
+    }
+
+    const studentPool = Array.isArray(allStudentsRaw) && allStudentsRaw.length > 0
+        ? allStudentsRaw
+        : (Array.isArray(students) ? students : []);
+
+    const matches = studentPool.filter((s) => {
+        const nameMatch = (s.name || '').toLowerCase().includes(lowerTerm);
+        const admMatch = (s.adm || '').toLowerCase().includes(lowerTerm);
+        const rollMatch = (s.rollNo || s.roll || '').toString().toLowerCase().includes(lowerTerm);
+        return nameMatch || admMatch || rollMatch;
+    }).slice(0, 30);
+
+    matches.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    listEl.innerHTML = '';
+
+    if (matches.length > 0) {
+        matches.forEach((s) => {
+            const item = document.createElement('div');
+            item.className = 'p-2.5 hover:bg-blue-50/80 cursor-pointer border-b border-slate-100 flex items-center justify-between gap-2 text-sm transition';
+            item.innerHTML = `
+                <div class="min-w-0 flex-1">
+                    <div class="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-1.5 flex-wrap">
+                        <span>${escapeHtml(s.name)}</span>
+                        ${s.class ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-blue-100 text-blue-800">Class: ${escapeHtml(s.class)}</span>` : ''}
+                    </div>
+                    <div class="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center gap-2">
+                        <span>Adm: <b class="text-slate-700">${escapeHtml(s.adm || '-')}</b></span>
+                        ${s.guardian ? `<span class="text-slate-400 truncate">• Guardian: ${escapeHtml(s.guardian)}</span>` : ''}
+                    </div>
+                </div>
+                <i class="fas fa-arrow-turn-down text-xs text-slate-300 flex-shrink-0"></i>
+            `;
+            item.onmousedown = (e) => {
+                e.preventDefault();
+                const donorInput = document.getElementById('donation-name');
+                if (donorInput) {
+                    donorInput.value = `${s.name}${s.adm ? ` (Adm: ${s.adm}, Class: ${s.class || '-'})` : ''}`.trim();
+                }
+                listEl.classList.add('hidden');
+                updateDonationDonorClearBtn();
+                document.getElementById('donation-amount')?.focus();
+            };
+            listEl.appendChild(item);
+        });
+        listEl.classList.remove('hidden');
+    } else {
+        listEl.innerHTML = `<div class="p-2.5 text-center text-xs font-semibold text-slate-500">No student matched "${escapeHtml(lowerTerm)}". Custom donor name will be used.</div>`;
+        listEl.classList.remove('hidden');
+    }
+};
+
+let isDonationDonorAutocompleteInitialized = false;
+const initDonationDonorAutocomplete = () => {
+    if (isDonationDonorAutocompleteInitialized) return;
+    const donorInput = document.getElementById('donation-name');
+    const clearBtn = document.getElementById('donation-donor-clear-btn');
+    if (donorInput) {
+        donorInput.addEventListener('input', (e) => {
+            populateDonationDonorSuggestions(e.target.value);
+            updateDonationDonorClearBtn();
+        });
+        donorInput.addEventListener('focus', (e) => {
+            if (e.target.value.trim()) {
+                populateDonationDonorSuggestions(e.target.value);
+            }
+        });
+    }
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            if (donorInput) {
+                donorInput.value = '';
+                donorInput.focus();
+            }
+            populateDonationDonorSuggestions('');
+            updateDonationDonorClearBtn();
+        });
+    }
+    document.addEventListener('click', (e) => {
+        const container = document.getElementById('donation-donor-container');
+        if (container && !container.contains(e.target)) {
+            document.getElementById('donation-donor-suggestions')?.classList.add('hidden');
+        }
+    });
+    isDonationDonorAutocompleteInitialized = true;
+};
+
 const setupDonationEntryUI = () => {
+    initDonationDonorAutocomplete();
     const today = new Date().toISOString().split('T')[0];
     const dateInput = document.getElementById('donation-date');
     if (dateInput && !dateInput.value) dateInput.value = today;
     const saveBtn = document.getElementById('save-donation-btn');
     if (saveBtn) saveBtn.textContent = editingDonationId ? 'Update Donation' : 'Save Donation';
+    updateDonationDonorClearBtn();
+    document.getElementById('donation-donor-suggestions')?.classList.add('hidden');
 };
 document.getElementById('save-donation-btn')?.addEventListener('click', async () => {
     if (isDonationSaveInFlight) return;
@@ -2043,9 +2152,6 @@ const populateFeeItemSelection = () => {
         }
         return true;
     });
-    if (!visibleItems.some((item) => item.key === STUDENT_DONATION_ITEM_KEY)) {
-        visibleItems.push({ ...STUDENT_DONATION_ITEM, academicYear: selectedFeeAcademicYear || getAcademicYearFromDate() });
-    }
 
     if (visibleItems.length === 0) {
          container.innerHTML = '<div class="col-span-3 text-center text-xs font-semibold text-gray-400 py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">No fee items available</div>';
@@ -2093,7 +2199,6 @@ const populateFeeItemSelection = () => {
         visibleItems.filter((item) => (item.type || 'month') === 'month'),
         selectedFeeAcademicYear
     );
-    const donationItems = visibleItems.filter((item) => item.key === STUDENT_DONATION_ITEM_KEY);
     const otherItems = visibleItems.filter((item) => (item.type || 'month') === 'custom' && item.key !== STUDENT_DONATION_ITEM_KEY);
     const buildSection = (title, items, tone = 'text-gray-500') => {
         if (!items.length) return '';
@@ -2101,9 +2206,8 @@ const populateFeeItemSelection = () => {
     };
     container.innerHTML = [
         buildSection('Monthly Fees', monthlyItems, 'text-blue-600'),
-        buildSection('Other Fees', otherItems, 'text-amber-600'),
-        buildSection('Donation (Optional)', donationItems, 'text-emerald-600')
-    ].join('');
+        buildSection('Other Fees', otherItems, 'text-amber-600')
+    ].filter(Boolean).join('');
 
     if(st) {
         document.querySelectorAll('.fee-item-checkbox').forEach(cb => {
