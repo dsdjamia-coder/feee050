@@ -4144,11 +4144,13 @@ const prepareHistoryData = () => {
             a[k] = {
                 tId: k, r: p.receiptNo||'-', sId: p.studentId, dt: p.paymentDate,
                 ts: pTs, kind: 'fee',
-                i: [], tot: 0, by: getStaffName(p.collectedBy, p.collectedByName), studentIds: [], seenBillingKeys: new Set()
+                i: [], tot: 0, by: getStaffName(p.collectedBy, p.collectedByName), studentIds: [], seenBillingKeys: new Set(),
+                description: p.description || ''
             };
         } else {
             // Keep the absolute highest (newest) timestamp for accurate sorting of this group
             if (pTs > a[k].ts) a[k].ts = pTs;
+            if (!a[k].description && p.description) a[k].description = p.description;
         }
         
         const billingKey = getPaymentBillingKey(p);
@@ -4191,7 +4193,8 @@ const prepareHistoryData = () => {
             const sName = studentsInTxn.map((student) => student.name.toLowerCase()).join(' ');
             const sAdm = studentsInTxn.map((student) => (student.adm || '').toLowerCase()).join(' ');
             const rNo = item.r.toString().toLowerCase();
-            return sName.includes(searchTerm) || sAdm.includes(searchTerm) || rNo.includes(searchTerm);
+            const desc = (item.description || '').toLowerCase();
+            return sName.includes(searchTerm) || sAdm.includes(searchTerm) || rNo.includes(searchTerm) || desc.includes(searchTerm);
         });
     }
 
@@ -4254,15 +4257,23 @@ const loadMoreHistory = (renderToken = historyRenderToken) => {
             if(!primaryStudent && !isDonationRow) return;
             const formatStudentMeta = (student) => `${student.name} (Adm: ${student.adm||'-'}, Class: ${student.class||'-'})`;
             const primaryStudentLabel = isDonationRow
-                ? `Donation: ${i.donorName || '-'}${i.description ? ` (${i.description})` : ''}`
+                ? `Donation: ${i.donorName || '-'}`
                 : formatStudentMeta(primaryStudent);
             const otherStudentRows = txnStudents.slice(1).map((student) => formatStudentMeta(student));
             const studentCount = isDonationRow ? 1 : (txnStudents.length || 1);
             const totalLabel = `₹${Number(i.tot || 0).toFixed(0)} (${studentCount})`;
+            const hasDescription = Boolean(i.description && String(i.description).trim());
+            const descHtml = hasDescription
+                ? `<div class="text-[11px] font-normal text-slate-500 truncate max-w-[200px] sm:max-w-[260px] mt-0.5" title="${escapeHtml(i.description)}"><i class="fas fa-comment-dots text-[10px] text-slate-400 mr-1"></i>${escapeHtml(i.description)}</div>`
+                : '';
             html += `<tr class="bg-white hover:bg-gray-50 transition">
                 <td class="p-3 font-medium text-gray-900">${i.r}</td>
                 <td class="p-3 text-gray-600">${new Date(i.dt).toLocaleDateString('en-GB')}</td>
-                <td class="p-3 font-medium text-blue-700">${escapeHtml(primaryStudentLabel)}${otherStudentRows.length ? `<span class="text-[10px] text-gray-500 block mt-1">${otherStudentRows.map((row) => escapeHtml(row)).join('<br>')}</span>` : ''}</td>
+                <td class="p-3 font-medium text-blue-700 max-w-[220px] sm:max-w-[300px]">
+                    <div class="truncate font-semibold text-slate-900" title="${escapeHtml(primaryStudentLabel)}">${escapeHtml(primaryStudentLabel)}</div>
+                    ${descHtml}
+                    ${otherStudentRows.length ? `<span class="text-[10px] text-gray-500 block mt-1">${otherStudentRows.map((row) => escapeHtml(row)).join('<br>')}</span>` : ''}
+                </td>
                 <td class="p-3"><span class="text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 whitespace-nowrap">${i.by}</span></td>
                 <td class="p-3 text-center">
                     <button type="button" class="view-history-breakdown-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${isDonationRow ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'} transition cursor-pointer shadow-2xs" data-tid="${escapeHtml(i.tId)}" data-sid="${escapeHtml(i.sId || '')}" title="Click to view fee breakdown">
