@@ -2204,9 +2204,14 @@
             <!-- Modal Header -->
             <div class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 flex items-start justify-between gap-4">
                 <div class="flex items-center gap-4 min-w-0">
-                    <div class="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 border-white/30 overflow-hidden bg-white/10 flex items-center justify-center shrink-0 shadow-md">
-                        <img id="view-stu-photo" class="w-full h-full object-cover hidden" alt="Student Photo">
-                        <i id="view-stu-photo-placeholder" class="fas fa-user text-3xl sm:text-4xl text-white/60"></i>
+                    <div class="relative shrink-0">
+                        <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 border-white/30 overflow-hidden bg-white/10 flex items-center justify-center shadow-md">
+                            <img id="view-stu-photo" class="w-full h-full object-cover hidden" alt="Student Photo">
+                            <i id="view-stu-photo-placeholder" class="fas fa-user text-3xl sm:text-4xl text-white/60"></i>
+                        </div>
+                        <button type="button" id="modal-download-stu-photo-btn" class="hidden absolute -bottom-1 -left-1 w-6 h-6 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-full flex items-center justify-center shadow-sm transition cursor-pointer text-[10px] border-2 border-white" title="Download Photo (PNG)">
+                            <i class="fas fa-download text-[9px] pointer-events-none"></i>
+                        </button>
                     </div>
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-2 flex-wrap mb-1">

@@ -4380,6 +4380,74 @@ document.getElementById('student-history-done-btn')?.addEventListener('click', (
     document.getElementById('student-history-popup')?.classList.remove('flex');
 });
 
+const downloadStudentPhotoAsPng = (photoSource, studentName) => {
+    if (!photoSource) {
+        alert('No photo available to download.');
+        return;
+    }
+
+    const triggerDownload = (url) => {
+        const cleanName = String(studentName || 'student_photo')
+            .trim()
+            .replace(/[/\\?%*:|"<>]/g, '_')
+            .replace(/\s+/g, '_');
+        const filename = `${cleanName}.png`;
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    };
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+        try {
+            const canvas = document.createElement('canvas');
+            const targetWidth = img.naturalWidth || img.width || 400;
+            const targetHeight = img.naturalHeight || img.height || 400;
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                triggerDownload(photoSource);
+                return;
+            }
+
+            // Draw at original maximum native resolution
+            ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+            if (canvas.toBlob) {
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        const blobUrl = URL.createObjectURL(blob);
+                        triggerDownload(blobUrl);
+                        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+                    } else {
+                        const dataUrl = canvas.toDataURL('image/png', 1.0);
+                        triggerDownload(dataUrl);
+                    }
+                }, 'image/png');
+            } else {
+                const dataUrl = canvas.toDataURL('image/png', 1.0);
+                triggerDownload(dataUrl);
+            }
+        } catch (err) {
+            console.warn('Canvas conversion notice, falling back to direct download:', err);
+            triggerDownload(photoSource);
+        }
+    };
+
+    img.onerror = (e) => {
+        console.warn('Image load error, falling back to direct download:', e);
+        triggerDownload(photoSource);
+    };
+
+    img.src = photoSource;
+};
+
 const renderStudentList = () => {
     const selectedYear = document.getElementById('filter-manage-academic-year')?.value || getActiveAcademicYearLabel();
     const isActiveYear = selectedYear === getActiveAcademicYearLabel();
@@ -4464,15 +4532,15 @@ const renderStudentList = () => {
 
         if (!isActiveYear) {
             actionButtons = `
-                <button class="view-student-history-btn bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 ml-auto" data-id="${s.id}">
+                <button class="view-student-history-btn bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 ml-auto cursor-pointer" data-id="${s.id}">
                     <i class="fas fa-history"></i> History
                 </button>
             `;
         } else {
             actionButtons = `
-                <button class="view-student-history-btn bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2.5 py-1.5 rounded-md mr-1.5 text-xs font-bold transition" data-id="${s.id}" title="Academic History"><i class="fas fa-history"></i></button>
-                <button class="edit-student-btn bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-md mr-1.5 text-xs font-bold transition" data-id="${s.id}"><i class="fas fa-edit"></i> Edit</button>
-                <button class="delete-student-btn bg-red-50 text-red-600 hover:bg-red-100 px-2.5 py-1.5 rounded-md text-xs font-bold transition" data-id="${s.id}"><i class="fas fa-trash"></i></button>
+                <button class="view-student-history-btn bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2.5 py-1.5 rounded-md mr-1.5 text-xs font-bold transition cursor-pointer" data-id="${s.id}" title="Academic History"><i class="fas fa-history"></i></button>
+                <button class="edit-student-btn bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-md mr-1.5 text-xs font-bold transition cursor-pointer" data-id="${s.id}"><i class="fas fa-edit"></i> Edit</button>
+                <button class="delete-student-btn bg-red-50 text-red-600 hover:bg-red-100 px-2.5 py-1.5 rounded-md text-xs font-bold transition cursor-pointer" data-id="${s.id}"><i class="fas fa-trash"></i></button>
             `;
         }
 
@@ -4480,8 +4548,15 @@ const renderStudentList = () => {
         <tr class="hover:bg-gray-50 bg-white">
             <td class="p-3 text-center font-bold text-gray-400">${i + 1}</td>
             <td class="p-3">
-                <div class="w-10 h-10 rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 shadow-inner">
-                    ${stuPhoto ? `<img src="${stuPhoto}" class="w-full h-full object-cover">` : `<i class="fas fa-user text-slate-400 text-sm"></i>`}
+                <div class="relative inline-block">
+                    <div class="w-10 h-10 rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 shadow-inner">
+                        ${stuPhoto ? `<img src="${stuPhoto}" class="w-full h-full object-cover" alt="${escapeHtml(s.name || 'Student')}">` : `<i class="fas fa-user text-slate-400 text-sm"></i>`}
+                    </div>
+                    ${stuPhoto ? `
+                    <button type="button" class="download-student-photo-btn absolute -bottom-1 -left-1 w-5 h-5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-full flex items-center justify-center shadow-xs transition cursor-pointer text-[9px] border-2 border-white" data-student-id="${s.id}" data-name="${escapeHtml(s.name || 'student')}" title="Download Photo (PNG)">
+                        <i class="fas fa-download text-[7.5px] pointer-events-none"></i>
+                    </button>
+                    ` : ''}
                 </div>
             </td>
             <td class="p-3 font-mono text-gray-500 font-medium">${escapeHtml(s.adm || '-')}</td>
@@ -4516,6 +4591,17 @@ document.getElementById('search-student-input').addEventListener('input', render
 document.getElementById('sort-manage-students').addEventListener('change', renderStudentList);
 
 document.getElementById('student-list-container').addEventListener('click', e => {
+    const downloadPhotoBtn = e.target.closest('.download-student-photo-btn');
+    if (downloadPhotoBtn) {
+        e.stopPropagation();
+        e.preventDefault();
+        const studentId = downloadPhotoBtn.dataset.studentId || '';
+        const targetStudent = rawStudents.find(st => st.id === studentId) || students.find(st => st.id === studentId);
+        const stuName = downloadPhotoBtn.dataset.name || targetStudent?.name || 'student';
+        const photoUrl = targetStudent?.photo || targetStudent?.profile?.photo || '';
+        downloadStudentPhotoAsPng(photoUrl, stuName);
+        return;
+    }
     const histBtn = e.target.closest('.view-student-history-btn');
     if(histBtn) {
         openStudentHistoryModal(histBtn.dataset.id);
@@ -8536,16 +8622,25 @@ const openStudentDetailsModal = (studentId) => {
     // Photo
     const photoImg = document.getElementById('view-stu-photo');
     const photoPlaceholder = document.getElementById('view-stu-photo-placeholder');
+    const modalDownloadBtn = document.getElementById('modal-download-stu-photo-btn');
     const photoUrl = student.photo || student.profilePhoto || student.photoUrl || student.profile?.photo || '';
     if (photoImg && photoPlaceholder) {
         if (photoUrl) {
             photoImg.src = photoUrl;
             photoImg.classList.remove('hidden');
             photoPlaceholder.classList.add('hidden');
+            if (modalDownloadBtn) {
+                modalDownloadBtn.classList.remove('hidden');
+                modalDownloadBtn.onclick = () => downloadStudentPhotoAsPng(photoUrl, student.name);
+            }
         } else {
             photoImg.src = '';
             photoImg.classList.add('hidden');
             photoPlaceholder.classList.remove('hidden');
+            if (modalDownloadBtn) {
+                modalDownloadBtn.classList.add('hidden');
+                modalDownloadBtn.onclick = null;
+            }
         }
     }
 
