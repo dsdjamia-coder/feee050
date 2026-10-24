@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for supporting cross-month (spanning) fee collection window (e.g., 25th of month to 5th of next month) in Admin Fee Settings and Student Notifications.",
-  "updatedAt":  "2026-10-24T01:06:50.473331647Z",
+  "summary":  "Implementation plan to remove the redundant 'Default' label/badge from each monthly fee card in Fee Settings, displaying only the clean month name.",
+  "updatedAt":  "2026-10-24T04:54:59.805054158Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

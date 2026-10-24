@@ -8217,12 +8217,10 @@ const renderFeeItemsManagement = () => {
     const customItems = scopedFeeItems.filter((item) => item.type === 'custom');
 
     const renderMonthlyItemCard = (item) => {
-        return `<div class="flex items-center justify-between p-3.5 bg-white border border-blue-100 hover:border-blue-300 rounded-xl shadow-2xs hover:shadow-xs transition drag-item" data-key="${item.key}">
-            <div class="flex items-center gap-2.5 min-w-0">
-                <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 text-xs shadow-2xs"><i class="fas fa-calendar-alt"></i></span>
-                <span class="font-bold text-gray-800 text-sm truncate">${escapeHtml(item.name)}</span>
-            </div>
-            <span class="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-md text-[10px] font-bold uppercase tracking-wider shrink-0">Default</span>
+        const cleanName = (item.name || '').replace(/^default\s*[-:—–]?\s*/i, '').trim();
+        return `<div class="flex items-center gap-3 p-3.5 bg-white border border-slate-200 hover:border-blue-300 rounded-xl shadow-2xs hover:shadow-xs transition drag-item" data-key="${item.key}">
+            <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 text-xs shadow-2xs"><i class="fas fa-calendar-alt"></i></span>
+            <span class="font-bold text-gray-800 text-sm truncate">${escapeHtml(cleanName)}</span>
         </div>`;
     };
 
@@ -8232,7 +8230,7 @@ const renderFeeItemsManagement = () => {
         const handleHtml = item.type === 'custom'
             ? `<span class="drag-handle mr-4 text-gray-500 text-lg bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg px-2 py-1 cursor-grab active:cursor-grabbing select-none" title="Drag to reorder"><i class="fas fa-grip-lines"></i></span>`
             : `<span class="mr-4 text-[10px] font-bold uppercase text-gray-400">Fixed</span>`;
-        return `<div class="flex items-center bg-white border border-gray-200 p-4 rounded-xl shadow-sm drag-item transition hover:shadow-md" data-key="${item.key}">${handleHtml}<div class="flex-grow"><span class="font-bold text-gray-800 text-lg">${item.name}</span>${detailsHtml}</div>${item.type==='custom' ? `<button class="text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-sm font-bold transition edit-fee mr-2" data-key="${item.key}"><i class="fas fa-edit"></i></button><button class="text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg text-sm font-bold transition del-fee" data-key="${item.key}"><i class="fas fa-trash"></i></button>` : `<span class="px-3 py-1 bg-gray-100 text-gray-500 rounded-lg text-xs font-bold uppercase tracking-wider">Default Month</span>`}</div>`;
+        return `<div class="flex items-center bg-white border border-gray-200 p-4 rounded-xl shadow-sm drag-item transition hover:shadow-md" data-key="${item.key}">${handleHtml}<div class="flex-grow"><span class="font-bold text-gray-800 text-lg">${item.name}</span>${detailsHtml}</div>${item.type==='custom' ? `<button class="text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-sm font-bold transition edit-fee mr-2" data-key="${item.key}"><i class="fas fa-edit"></i></button><button class="text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg text-sm font-bold transition del-fee" data-key="${item.key}"><i class="fas fa-trash"></i></button>` : `<span class="px-3 py-1 bg-gray-100 text-gray-500 rounded-lg text-xs font-bold uppercase tracking-wider">Month</span>`}</div>`;
     };
 
     cont.innerHTML = `
