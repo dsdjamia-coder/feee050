@@ -1,31 +1,50 @@
-# Implementation Plan: Remove Redundant 'Default' Label from Monthly Fee Cards
+# Implementation Plan: Table Layout & Search/Filter for Student Groups & Concessions
 
-## 1. Requirement & Problem Analysis
-- **Current Behavior**:
-  - In Admin Portal -> **Fee Settings** (`scripts/pages/admin-page.js` -> `renderFeeItemsManagement`), the section heading already states:
-    `Default Months (2024-2025)`
-  - However, every month card (January, February, ..., December) repeatedly displays a pill badge:
-    `<span class="... shrink-0">Default</span>`
-  - Additionally, if any fee item title contains "Default", it causes repetitive clutter.
-- **Target Behavior**:
-  - Remove the repeated `Default` badge from every monthly fee card.
-  - Clean any redundant "Default" prefix from the month title.
-  - Display only the clean month name (e.g. `June (2024-2025)` or `June`) with its calendar icon in a clean, modern card layout.
+## 1. Requirement Overview
+1. **Student Groups Search & Filter**:
+   - In "Existing Groups" (`#manage-groups-page`), add a real-time search box (by student name, adm no) and a class filter dropdown.
+   - Show dynamic matching count (e.g. "Showing X of Y groups").
+2. **Student Groups Table Format (Grouped Table)**:
+   - Replace the current badge/card view with a clear, professional grouped table structure.
+   - Each group will be presented with:
+     - Group Header: Group number, total member count, monthly fee badge (₹/month), and Edit/Delete buttons.
+     - Members Table: Columns for `#`, `Student Name`, `Class`, `Admission No`, and `Phone/Guardian`.
+3. **Active Concessions Table Format**:
+   - Replace the card grid in Active Concessions (`#active-concessions-list`) with a clean, responsive table.
+   - Table columns: `#`, `Student Name & Guardian`, `Class`, `Adm No`, `Special Monthly Fee (₹)`, and `Actions` (Edit & Remove).
 
 ---
 
 ## 2. Proposed Changes
 
-### File: `scripts/pages/admin-page.js`
-- **Location**: `renderFeeItemsManagement` -> `renderMonthlyItemCard` (lines 8219–8227).
-- **Changes**:
-  1. Strip any "Default" prefix from `item.name` using `(item.name || '').replace(/^default\s*[-:—–]?\s*/i, '').trim()`.
-  2. Remove the `<span ...>Default</span>` badge element from the card markup.
-  3. Keep the card clean and responsive with the calendar icon and prominent month name.
+### File 1: `admin.html`
+1. **Student Groups Section (`#manage-groups-page`)**:
+   - Above `#student-groups-list`, add a Search & Filter toolbar:
+     - Search input: `#grp-search-input` (Search student name, adm no...)
+     - Class dropdown: `#grp-class-filter` (All Classes filter)
+     - Status counter: `#grp-count-badge`
+   - Adjust `#student-groups-list` layout to host responsive grouped tables.
+2. **Fee Concessions Section (`#fee-concessions-page`)**:
+   - Replace grid wrapper around `#active-concessions-list` with a responsive table container:
+     - `table` with sticky-friendly styled headers: `#`, `Student Name`, `Class`, `Adm No`, `Special Monthly Fee`, `Actions`.
+     - `tbody id="active-concessions-table-body"` for rows.
+
+### File 2: `scripts/pages/admin-page.js`
+1. **Student Groups Rendering (`renderStudentGroups`)**:
+   - Populate `#grp-class-filter` options using active classes.
+   - Read `#grp-search-input` and `#grp-class-filter`.
+   - Filter groups where any member student matches the search term or class.
+   - Render each group as a structured block containing a clean tabular view of its member students.
+   - Wire input/change event listeners for `#grp-search-input` and `#grp-class-filter`.
+2. **Active Concessions Rendering (`renderActiveConcessionsList`)**:
+   - Change rendering from card blocks to `<tr>` table rows.
+   - Include row indices (`#`), formatted names, badges for class and admission number, bold currency badge for concession amount, and action buttons (`Edit`, `Remove`).
+   - Preserve existing event delegations (`.concession-open-btn`, `.concession-delete-btn`).
 
 ---
 
-## 3. Risks & Safety
-- **Compatibility**: Does not modify database fields or change fee keys. Strictly a presentation update in the Admin UI.
-- **UI Consistency**: All text remains in English.
-- **Verification**: Run `npx tsc --noEmit` and `compile_applet` to ensure zero compilation or syntax errors.
+## 3. Risks & Verification
+- **Functional Integrity**: Edit and delete actions for both groups and concessions must retain exact event delegation and ID mapping.
+- **Responsive Layout**: Tables will have `overflow-x-auto` to ensure seamless scrolling on mobile and tablet devices.
+- **Language Requirements**: All UI elements, headers, and buttons in English only; user communication in Malayalam.
+- **Verification**: Run `npx tsc --noEmit` and `compile_applet`.

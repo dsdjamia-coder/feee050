@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan to remove the redundant 'Default' label/badge from each monthly fee card in Fee Settings, displaying only the clean month name.",
-  "updatedAt":  "2026-10-24T04:54:59.805054158Z",
+  "summary":  "Implementation plan to transform Active Concessions and Student Groups to structured table format, with search and class filtering for existing groups.",
+  "updatedAt":  "2026-10-24T05:13:49.658435613Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -1051,9 +1051,32 @@
                             <div id="create-group-btn-container" class="text-right hidden border-t pt-4"><button id="create-group-btn" class="btn-primary font-bold py-2.5 px-8 rounded-lg shadow-md">Create Group</button></div>
                         </div>
                     </div>
-                    <div class="card p-5 rounded-xl shadow-sm lg:col-span-7">
-                        <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Existing Groups</h2>
-                        <div id="student-groups-list" class="space-y-3"></div>
+                    <div class="card p-5 rounded-xl shadow-sm lg:col-span-7 space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-2">
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                    <i class="fas fa-users-cog text-blue-600 text-lg"></i> Existing Groups
+                                </h2>
+                                <p class="text-xs text-gray-500 mt-0.5">Manage linked student groups and group monthly fee rates.</p>
+                            </div>
+                            <span id="grp-count-badge" class="text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-full self-start sm:self-auto">0 Groups</span>
+                        </div>
+
+                        <!-- Existing Groups Search & Class Filter Bar -->
+                        <div class="bg-gray-50 p-2.5 rounded-lg border border-gray-200 shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                            <div class="sm:col-span-7 relative">
+                                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                                <input type="text" id="grp-search-input" placeholder="Search by student name, adm no..." class="w-full py-1.5 pl-8 pr-2.5 text-xs border border-gray-300 rounded-md bg-white text-gray-800 placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div class="sm:col-span-5">
+                                <select id="grp-class-filter" class="w-full py-1.5 px-2.5 text-xs border border-gray-300 rounded-md bg-white text-gray-800 font-medium focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="all">All Classes</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Existing Groups List Container -->
+                        <div id="student-groups-list" class="space-y-4"></div>
                     </div>
                 </div>
             </section>
@@ -1143,8 +1166,22 @@
                             </div>
                         </div>
 
-                        <!-- Active Concessions Card Grid -->
-                        <div id="active-concessions-list" class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3"></div>
+                        <!-- Active Concessions Table -->
+                        <div class="overflow-x-auto rounded-xl border border-emerald-200/80 bg-white shadow-2xs">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead class="bg-emerald-50 text-emerald-950 uppercase font-extrabold text-[11px] tracking-wider border-b border-emerald-200">
+                                    <tr>
+                                        <th class="py-2.5 px-3 w-10 text-center">#</th>
+                                        <th class="py-2.5 px-3">Student Details</th>
+                                        <th class="py-2.5 px-3 text-center">Class</th>
+                                        <th class="py-2.5 px-3 text-center">Adm No</th>
+                                        <th class="py-2.5 px-3 text-right">Special Monthly Fee</th>
+                                        <th class="py-2.5 px-3 text-center w-28">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="active-concessions-list" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </section>

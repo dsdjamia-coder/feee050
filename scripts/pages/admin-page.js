@@ -6356,18 +6356,170 @@ const renderGroupStudentDatalist = (idx) => {
         .join('');
     input.placeholder = 'Type student name...';
 };
+
+const populateExistingGroupClassFilter = () => {
+    const classFilter = document.getElementById('grp-class-filter');
+    if (!classFilter) return;
+    const currentVal = classFilter.value || 'all';
+    const classOptions = '<option value="all">All Classes</option>' + (classes || []).map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    if (classFilter.getAttribute('data-loaded-count') !== String((classes || []).length)) {
+        classFilter.innerHTML = classOptions;
+        classFilter.setAttribute('data-loaded-count', String((classes || []).length));
+        if ((classes || []).includes(currentVal)) {
+            classFilter.value = currentVal;
+        } else {
+            classFilter.value = 'all';
+        }
+    }
+};
+
 const renderStudentGroups = () => {
     const listNode = document.getElementById('student-groups-list');
     if (!listNode) return;
+    populateExistingGroupClassFilter();
+
+    const sTerm = (document.getElementById('grp-search-input')?.value || '').trim().toLowerCase();
+    const fCls = document.getElementById('grp-class-filter')?.value || 'all';
+    const countBadge = document.getElementById('grp-count-badge');
+
     // Deduplicate groups by unique ID to prevent any duplicate card display
     const uniqueGroups = Array.from(new Map((studentGroups || []).map((g) => [g.id, g])).values());
-    listNode.innerHTML = uniqueGroups.length === 0 ? '<p class="text-gray-500 italic p-3">No groups created yet.</p>' : uniqueGroups.map((g) => {
-        const memberCards = (g.memberIds || []).map((memberId) => {
+
+    const filteredGroups = uniqueGroups.filter((g) => {
+        const memberStudents = (g.memberIds || []).map((mid) => students.find((entry) => entry.id === mid)).filter(Boolean);
+
+        let matchClass = (fCls === 'all');
+        if (!matchClass) {
+            matchClass = memberStudents.some((st) => st.class === fCls);
+        }
+
+        let matchSearch = true;
+        if (sTerm) {
+            const matchesMember = memberStudents.some((st) => 
+                (st.name || '').toLowerCase().includes(sTerm) ||
+                (st.adm && String(st.adm).toLowerCase().includes(sTerm)) ||
+                (st.phone && String(st.phone).toLowerCase().includes(sTerm)) ||
+                (st.parentPhone && String(st.parentPhone).toLowerCase().includes(sTerm)) ||
+                (st.fatherName && String(st.fatherName).toLowerCase().includes(sTerm))
+            );
+            const matchesFee = String(g.fee || '').includes(sTerm);
+            matchSearch = matchesMember || matchesFee;
+        }
+
+        return matchClass && matchSearch;
+    });
+
+    if (countBadge) {
+        if (fCls !== 'all' || sTerm) {
+            countBadge.textContent = `Showing ${filteredGroups.length} of ${uniqueGroups.length} Groups`;
+        } else {
+            countBadge.textContent = `${uniqueGroups.length} Groups`;
+        }
+    }
+
+    if (filteredGroups.length === 0) {
+        listNode.innerHTML = `
+            <div class="text-center py-8 px-4 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-500 text-xs">
+                <i class="fas fa-users-slash text-gray-400 text-xl mb-1.5 block"></i>
+                ${uniqueGroups.length === 0 ? 'No groups created yet.' : 'No student groups match the current search or class filter.'}
+            </div>
+        `;
+        return;
+    }
+
+    listNode.innerHTML = filteredGroups.map((g, gIdx) => {
+        const memberRows = (g.memberIds || []).map((memberId, mIdx) => {
             const student = students.find((entry) => entry.id === memberId);
-            if(!student) return `<span class="inline-flex items-center px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 text-xs font-bold">Missing student</span>`;
-            return `<span class="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold">${escapeHtml(student.name || '-')} <span class="ml-1 text-slate-500">(${escapeHtml(student.class || '--')})</span></span>`;
+            if (!student) {
+                return `
+                    <tr class="hover:bg-amber-50/50">
+                        <td class="py-2.5 px-3 text-center text-gray-400 font-semibold">${mIdx + 1}</td>
+                        <td colspan="4" class="py-2.5 px-3 text-amber-600 font-semibold italic text-xs">
+                            <i class="fas fa-exclamation-triangle mr-1"></i> Missing student record (ID: ${escapeHtml(memberId)})
+                        </td>
+                    </tr>
+                `;
+            }
+
+            const studentName = escapeHtml(student.name || '-');
+            const studentClass = escapeHtml(student.class || '--');
+            const admNo = escapeHtml(student.adm || '-');
+            const guardianInfo = student.fatherName || student.parentPhone || student.phone || '-';
+
+            return `
+                <tr class="hover:bg-blue-50/40 transition-colors">
+                    <td class="py-2.5 px-3 text-center text-gray-400 font-semibold">${mIdx + 1}</td>
+                    <td class="py-2.5 px-3">
+                        <span class="font-bold text-gray-800">${studentName}</span>
+                    </td>
+                    <td class="py-2.5 px-3 text-center">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold text-[11px] border border-blue-200">
+                            Class ${studentClass}
+                        </span>
+                    </td>
+                    <td class="py-2.5 px-3 text-center">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 font-semibold text-[11px] border border-gray-200">
+                            ${admNo}
+                        </span>
+                    </td>
+                    <td class="py-2.5 px-3 text-gray-500 text-xs truncate max-w-[160px]" title="${escapeHtml(guardianInfo)}">
+                        ${escapeHtml(guardianInfo)}
+                    </td>
+                </tr>
+            `;
         }).join('');
-        return `<div class="bg-white border border-gray-200 p-4 rounded-xl shadow-sm flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-3"><div class="flex flex-col gap-2"><div class="flex flex-wrap gap-2">${memberCards}</div><span class="text-gray-500 text-sm font-medium"><i class="fas fa-users mr-1"></i> ${(g.memberIds || []).length} Linked Students ${g.fee > 0 ? `<span class="ml-2 text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-bold">₹${g.fee}/month</span>` : ''}</span></div><div class="shrink-0"><button class="text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg text-sm font-bold transition edit-grp mr-2" data-id="${g.id}"><i class="fas fa-edit"></i> Edit</button><button class="text-red-600 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg text-sm font-bold transition del-grp" data-id="${g.id}"><i class="fas fa-trash"></i></button></div></div>`;
+
+        const feeAmount = Number(g.fee) || 0;
+
+        return `
+            <div class="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden hover:border-blue-300 transition-all">
+                <!-- Group Header Bar -->
+                <div class="bg-slate-50 px-3.5 py-2.5 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <span class="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-black shadow-2xs">
+                            ${gIdx + 1}
+                        </span>
+                        <h4 class="font-bold text-sm text-gray-800">
+                            Group #${gIdx + 1}
+                        </h4>
+                        <span class="inline-flex items-center gap-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                            <i class="fas fa-users text-[10px]"></i> ${(g.memberIds || []).length} Students
+                        </span>
+                        <span class="inline-flex items-center gap-1 text-xs font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 rounded-md shadow-2xs">
+                            ₹${feeAmount}/month
+                        </span>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                        <button type="button" class="text-blue-600 bg-white hover:bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md text-xs font-bold transition inline-flex items-center gap-1 edit-grp" data-id="${g.id}">
+                            <i class="fas fa-edit text-[10px]"></i> Edit
+                        </button>
+                        <button type="button" class="text-rose-600 bg-white hover:bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md text-xs font-bold transition inline-flex items-center gap-1 del-grp" data-id="${g.id}">
+                            <i class="fas fa-trash-alt text-[10px]"></i> Delete
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Members Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-gray-50/80 text-gray-600 uppercase font-bold text-[10px] tracking-wider border-b border-gray-200">
+                            <tr>
+                                <th class="py-2 px-3 w-10 text-center">#</th>
+                                <th class="py-2 px-3">Student Name</th>
+                                <th class="py-2 px-3 text-center">Class</th>
+                                <th class="py-2 px-3 text-center">Adm No</th>
+                                <th class="py-2 px-3">Guardian / Phone</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            ${memberRows || '<tr><td colspan="5" class="py-3 text-center text-gray-400 italic">No linked members.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
     }).join('');
 };
 const renderEditGroupMembers = () => {
@@ -6500,6 +6652,15 @@ document.getElementById('group-creation-container').addEventListener('change', e
         renderGroupStudentDatalist(idx);
     }
 });
+
+['grp-search-input', 'grp-class-filter'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+        el.addEventListener('input', () => renderStudentGroups());
+        el.addEventListener('change', () => renderStudentGroups());
+    }
+});
+
 let pendingGroupCreationData = null;
 
 const closeUnifyFamilyModal = () => {
@@ -7848,15 +8009,17 @@ const renderActiveConcessionsList = () => {
 
     if (filtered.length === 0) {
         actCont.innerHTML = `
-            <div class="col-span-full text-center py-8 px-4 bg-white/80 rounded-xl border border-dashed border-emerald-200 text-slate-400 text-xs">
-                <i class="fas fa-search text-emerald-300 text-lg mb-1.5 block"></i>
-                ${withConc.length === 0 ? 'No active fee concessions registered yet.' : 'No concessions match the current search or class filter.'}
-            </div>
+            <tr>
+                <td colspan="6" class="text-center py-8 px-4 text-slate-400 text-xs">
+                    <i class="fas fa-search text-emerald-300 text-lg mb-1.5 block"></i>
+                    ${withConc.length === 0 ? 'No active fee concessions registered yet.' : 'No concessions match the current search or class filter.'}
+                </td>
+            </tr>
         `;
         return;
     }
 
-    actCont.innerHTML = filtered.map(s => {
+    actCont.innerHTML = filtered.map((s, idx) => {
         const studentName = escapeHtml(s.name || '-');
         const studentClass = escapeHtml(s.class || '--');
         const admNo = escapeHtml(s.adm || '-');
@@ -7864,48 +8027,38 @@ const renderActiveConcessionsList = () => {
         const father = s.fatherName ? escapeHtml(s.fatherName) : '';
 
         return `
-            <div class="bg-white p-3.5 rounded-xl shadow-2xs border border-emerald-200 hover:border-emerald-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 group">
-                <div class="space-y-2">
-                    <!-- Top: Student Name and Class/Adm Badges -->
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0 flex-1">
-                            <h4 class="font-bold text-sm text-slate-800 leading-snug break-words group-hover:text-emerald-950 transition-colors" title="${studentName}">
-                                ${studentName}
-                            </h4>
-                            <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-200/80">
-                                    Class ${studentClass}
-                                </span>
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-semibold border border-slate-200/70">
-                                    Adm: ${admNo}
-                                </span>
-                                ${father ? `<span class="text-[11px] text-slate-500 truncate max-w-[140px]" title="Guardian: ${father}"><i class="fas fa-user-shield text-[9px] text-slate-400 mr-0.5"></i>${father}</span>` : ''}
-                            </div>
-                        </div>
+            <tr class="hover:bg-emerald-50/40 transition-colors">
+                <td class="py-2.5 px-3 text-center text-slate-400 font-semibold text-xs">${idx + 1}</td>
+                <td class="py-2.5 px-3">
+                    <div class="font-bold text-slate-800 text-xs hover:text-emerald-950">${studentName}</div>
+                    ${father ? `<div class="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5"><i class="fas fa-user-shield text-[9px]"></i> ${father}</div>` : ''}
+                </td>
+                <td class="py-2.5 px-3 text-center">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-200/80">
+                        Class ${studentClass}
+                    </span>
+                </td>
+                <td class="py-2.5 px-3 text-center">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-semibold border border-slate-200/70">
+                        ${admNo}
+                    </span>
+                </td>
+                <td class="py-2.5 px-3 text-right">
+                    <span class="inline-flex items-center font-extrabold text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md shadow-2xs">
+                        ₹${concessionAmt}
+                    </span>
+                </td>
+                <td class="py-2.5 px-3 text-center">
+                    <div class="inline-flex items-center justify-center gap-1">
+                        <button type="button" class="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded-md text-[11px] transition inline-flex items-center gap-1 concession-open-btn" data-id="${s.id}" title="Edit Concession">
+                            <i class="fas fa-edit text-[10px]"></i> Edit
+                        </button>
+                        <button type="button" class="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2 py-1 rounded-md text-[11px] transition inline-flex items-center gap-1 concession-delete-btn" data-id="${s.id}" title="Remove Concession">
+                            <i class="fas fa-trash-alt text-[10px]"></i>
+                        </button>
                     </div>
-
-                    <!-- Middle: Concession Monthly Fee Box -->
-                    <div class="bg-emerald-50/60 border border-emerald-200/80 rounded-lg p-2 flex items-center justify-between">
-                        <div class="flex items-center gap-1.5 text-xs text-emerald-900 font-semibold">
-                            <i class="fas fa-hand-holding-usd text-emerald-600"></i>
-                            <span>Special Monthly Fee</span>
-                        </div>
-                        <span class="inline-flex items-center font-black text-sm text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-200 shadow-2xs">
-                            ₹${concessionAmt}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Bottom: Action Buttons -->
-                <div class="pt-2 border-t border-slate-100 flex items-center justify-end gap-1.5">
-                    <button type="button" class="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1 rounded-md text-xs transition inline-flex items-center gap-1 concession-open-btn" data-id="${s.id}">
-                        <i class="fas fa-edit text-[10px]"></i> Edit
-                    </button>
-                    <button type="button" class="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2.5 py-1 rounded-md text-xs transition inline-flex items-center gap-1 concession-delete-btn" data-id="${s.id}">
-                        <i class="fas fa-trash-alt text-[10px]"></i> Remove
-                    </button>
-                </div>
-            </div>
+                </td>
+            </tr>
         `;
     }).join('');
 };
