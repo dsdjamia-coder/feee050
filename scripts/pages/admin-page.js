@@ -524,9 +524,11 @@ const setAcademicYearBadges = () => {
     const addBadge = document.getElementById('add-students-year-badge');
     const manageStudentsBadge = document.getElementById('manage-students-year-badge');
     const manageClassesBadge = document.getElementById('manage-classes-year-badge');
+    const bulkUploadBadge = document.getElementById('bulk-upload-year-badge');
     if (addBadge) addBadge.textContent = badgeText;
     if (manageStudentsBadge) manageStudentsBadge.textContent = badgeText;
     if (manageClassesBadge) manageClassesBadge.textContent = badgeText;
+    if (bulkUploadBadge) bulkUploadBadge.textContent = activeYear;
 };
 const syncActiveAcademicYearClasses = async (classNames, { replace = false } = {}) => {
     const normalizedClasses = sortClassLabels([...new Set(classNames.map((name) => name?.toString().trim().toUpperCase()).filter(Boolean))]);
@@ -3347,7 +3349,7 @@ function validateAndBuildStudent(extracted, rowIdx, selectedBulkClass, existingC
         samasthaId: uidVal,
         address: addressVal,
         photoUrl: '',
-        academicYear: currentAcademicYear || '',
+        academicYear: getActiveAcademicYearLabel(),
         fees: {},
         rowIdx: rowIdx,
         hasFatalError: hasFatalError,
@@ -3968,13 +3970,16 @@ async function executeBulkImport(datasetToUpload, mergePolicy) {
             const chunk = datasetToUpload.slice(i, i + 50);
             const batch = writeBatch(db);
 
+            const targetAcademicYear = getActiveAcademicYearLabel();
+
             chunk.forEach((s) => {
                 const effectiveClass = s.class || s.studentClass || selectedBulkClass || '';
+                const studentStatus = s.status || 'Active';
                 const cleanPayload = {
                     name: s.name || '',
                     class: effectiveClass,
                     studentClass: effectiveClass,
-                    status: s.status || 'Active',
+                    status: studentStatus,
                     gender: s.gender || 'Male',
                     uid: s.uid || '',
                     father: s.father || '',
@@ -3989,7 +3994,14 @@ async function executeBulkImport(datasetToUpload, mergePolicy) {
                     adhaar: s.adhaar || '',
                     samasthaId: s.samasthaId || '',
                     photo: s.photo || '',
-                    academicYear: s.academicYear || activeAcademicYear || currentAcademicYear || '',
+                    academicYear: targetAcademicYear,
+                    academicYears: {
+                        [targetAcademicYear]: {
+                            class: effectiveClass,
+                            status: studentStatus,
+                            updatedAt: new Date().toISOString()
+                        }
+                    },
                     profile: {
                         dob: s.dob || '',
                         address: s.address || '',
@@ -4004,7 +4016,7 @@ async function executeBulkImport(datasetToUpload, mergePolicy) {
                         mother: s.mother || '',
                         mobile: s.mobile || '',
                         motherMobile: s.motherMobile || '',
-                        status: s.status || 'Active'
+                        status: studentStatus
                     }
                 };
 
@@ -4022,8 +4034,17 @@ async function executeBulkImport(datasetToUpload, mergePolicy) {
                                 updateData[`profile.${f}`] = cleanPayload[f];
                             }
                         });
+                        updateData.class = effectiveClass;
+                        updateData.studentClass = effectiveClass;
+                        updateData.academicYear = targetAcademicYear;
+                        updateData[`academicYears.${targetAcademicYear}`] = {
+                            class: effectiveClass,
+                            status: studentStatus,
+                            updatedAt: new Date().toISOString()
+                        };
+
                         batch.set(studentRef, updateData, { merge: true });
-                        batch.set(getEnrollmentRef(cleanPayload.academicYear, existingDocId), buildEnrollmentPayload(existingDocId, { ...s.existingMatch, ...cleanPayload }), { merge: true });
+                        batch.set(getEnrollmentRef(targetAcademicYear, existingDocId), buildEnrollmentPayload(existingDocId, { ...s.existingMatch, ...cleanPayload, academicYear: targetAcademicYear }), { merge: true });
                         mergedCount += 1;
                     } else {
                         // Skip existing
@@ -4033,7 +4054,7 @@ async function executeBulkImport(datasetToUpload, mergePolicy) {
                     // Create new student document
                     const studentRef = doc(collection(db, `${BASE_PATH}/students`));
                     batch.set(studentRef, cleanPayload);
-                    batch.set(getEnrollmentRef(cleanPayload.academicYear, studentRef.id), buildEnrollmentPayload(studentRef.id, cleanPayload), { merge: true });
+                    batch.set(getEnrollmentRef(targetAcademicYear, studentRef.id), buildEnrollmentPayload(studentRef.id, cleanPayload), { merge: true });
                     addedCount += 1;
                 }
             });

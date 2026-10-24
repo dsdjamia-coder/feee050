@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan in Malayalam for adding a detailed fee items breakdown modal in Payment History on the Fee Collection page, with support for single and multi-student receipts.",
-  "updatedAt":  "2026-10-24T12:02:16.197108343Z",
+  "summary":  "Implementation plan to fix the Excel bulk student upload in admin-page.js so that uploaded students use the institution's active academic year and include the academicYears map (matching manual add), and clean up the orphan test records from 2026-2027.",
+  "updatedAt":  "2026-10-24T14:41:30.831259395Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

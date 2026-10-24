@@ -502,11 +502,17 @@
                         <button onclick="window.downloadCSVTemplate()" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><i class="fas fa-download text-blue-600"></i> Download CSV Template</button>
                     </div>
                     <p class="text-sm text-gray-600 mb-4">Select target <b>Class</b> before uploading. Header variations such as <b>DOB</b>, <b>Adm. Date</b>, <b>Adm_No</b>, etc. and dates in <b>DD-MM-YYYY</b> format are automatically detected and converted.</p>
-                    <div class="mb-4">
-                        <label class="block text-sm font-semibold mb-1 text-blue-800">Target Class for Bulk Upload <span class="mandatory-star">*</span></label>
-                        <select id="bulk-upload-class" class="w-full sm:max-w-md p-2.5 border rounded-lg bg-white">
-                            <option value="">-- Select Class --</option>
-                        </select>
+                    <div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex-1">
+                            <label class="block text-sm font-semibold mb-1 text-blue-800">Target Class for Bulk Upload <span class="mandatory-star">*</span></label>
+                            <select id="bulk-upload-class" class="w-full sm:max-w-md p-2.5 border rounded-lg bg-white font-semibold">
+                                <option value="">-- Select Class --</option>
+                            </select>
+                        </div>
+                        <div class="bg-indigo-50 border border-indigo-200 rounded-xl px-3.5 py-2 text-xs font-bold text-indigo-900 flex items-center gap-2 self-start sm:self-auto shadow-2xs">
+                            <i class="fas fa-calendar-alt text-indigo-600"></i>
+                            <span>Academic Year: <span id="bulk-upload-year-badge" class="font-black text-indigo-700">--</span> (Active)</span>
+                        </div>
                     </div>
                     <div class="upload-area max-w-2xl mx-auto my-2" id="excel-drop-zone"><input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden"><i class="fas fa-cloud-upload-alt text-4xl text-blue-400 mb-3"></i><p class="font-semibold text-gray-700">Click to select or drag and drop CSV/Excel file here</p></div>
                     <div id="excel-preview-area" class="mt-4 hidden p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
