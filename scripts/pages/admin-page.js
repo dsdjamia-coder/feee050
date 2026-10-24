@@ -3956,21 +3956,44 @@ async function executeBulkImport(datasetToUpload, mergePolicy) {
     const fill = document.getElementById('upload-progress-fill');
     const status = document.getElementById('upload-status-text');
 
+    const statusModal = document.getElementById('excel-upload-status-modal');
+    const progressView = document.getElementById('excel-upload-progress-view');
+    const resultView = document.getElementById('excel-upload-result-view');
+    const modalProgressFill = document.getElementById('excel-modal-progress-fill');
+    const modalProgressText = document.getElementById('excel-modal-progress-text');
+    const modalProgressPct = document.getElementById('excel-modal-progress-pct');
+    const resultClass = document.getElementById('excel-result-class');
+    const resultYear = document.getElementById('excel-result-year');
+    const resultAdded = document.getElementById('excel-result-added');
+    const resultMerged = document.getElementById('excel-result-merged');
+    const resultSkipped = document.getElementById('excel-result-skipped');
+    const okBtn = document.getElementById('excel-upload-ok-btn');
+
     startBtn.disabled = true;
     if (skipBtn) skipBtn.disabled = true;
     cancelBtn.disabled = true;
     bar.classList.remove('hidden');
+
+    if (statusModal) {
+        if (progressView) progressView.classList.remove('hidden');
+        if (resultView) resultView.classList.add('hidden');
+        if (modalProgressFill) modalProgressFill.style.width = '0%';
+        if (modalProgressPct) modalProgressPct.textContent = '0%';
+        if (modalProgressText) modalProgressText.textContent = `Processing 0 of ${datasetToUpload.length} students...`;
+        statusModal.classList.remove('hidden');
+        statusModal.classList.add('flex');
+    }
 
     let addedCount = 0;
     let mergedCount = 0;
     let skippedCount = 0;
 
     try {
+        const targetAcademicYear = getActiveAcademicYearLabel();
+
         for (let i = 0; i < datasetToUpload.length; i += 50) {
             const chunk = datasetToUpload.slice(i, i + 50);
             const batch = writeBatch(db);
-
-            const targetAcademicYear = getActiveAcademicYearLabel();
 
             chunk.forEach((s) => {
                 const effectiveClass = s.class || s.studentClass || selectedBulkClass || '';
@@ -4061,8 +4084,14 @@ async function executeBulkImport(datasetToUpload, mergePolicy) {
 
             await batch.commit();
             const processedSoFar = Math.min(i + chunk.length, datasetToUpload.length);
-            fill.style.width = `${(processedSoFar / datasetToUpload.length) * 100}%`;
+            const pct = Math.round((processedSoFar / datasetToUpload.length) * 100);
+
+            fill.style.width = `${pct}%`;
             status.textContent = `Processing ${processedSoFar} of ${datasetToUpload.length} students...`;
+
+            if (modalProgressFill) modalProgressFill.style.width = `${pct}%`;
+            if (modalProgressPct) modalProgressPct.textContent = `${pct}%`;
+            if (modalProgressText) modalProgressText.textContent = `Processing ${processedSoFar} of ${datasetToUpload.length} students...`;
         }
 
         await syncActiveAcademicYearClasses([selectedBulkClass]);
@@ -4075,11 +4104,37 @@ async function executeBulkImport(datasetToUpload, mergePolicy) {
         });
 
         status.innerHTML = `<span class="text-emerald-600 font-bold">✔ Completed: ${addedCount} added, ${mergedCount} merged${skippedCount ? `, ${skippedCount} skipped` : ''}!</span>`;
-        alert(`Bulk upload completed!\n\n• Newly Added: ${addedCount}\n• Merged / Updated: ${mergedCount}\n• Skipped (Duplicates): ${skippedCount}`);
-        cancelBtn.disabled = false;
-        cancelBtn.click();
+
+        // Render Completion Modal
+        if (statusModal && resultView) {
+            if (progressView) progressView.classList.add('hidden');
+            resultView.classList.remove('hidden');
+            if (resultClass) resultClass.textContent = selectedBulkClass || '-';
+            if (resultYear) resultYear.textContent = targetAcademicYear || '-';
+            if (resultAdded) resultAdded.textContent = addedCount;
+            if (resultMerged) resultMerged.textContent = mergedCount;
+            if (resultSkipped) resultSkipped.textContent = skippedCount;
+
+            if (okBtn) {
+                okBtn.onclick = () => {
+                    statusModal.classList.add('hidden');
+                    statusModal.classList.remove('flex');
+                    cancelBtn.disabled = false;
+                    cancelBtn.click(); // Automatically closes the file preview & resets file input
+                    showToast?.(`Successfully uploaded ${addedCount} students into Class ${selectedBulkClass}.`, 'success');
+                };
+            }
+        } else {
+            alert(`Bulk upload completed!\n\n• Newly Added: ${addedCount}\n• Merged / Updated: ${mergedCount}\n• Skipped (Duplicates): ${skippedCount}`);
+            cancelBtn.disabled = false;
+            cancelBtn.click();
+        }
     } catch (err) {
         console.error("Bulk upload error:", err);
+        if (statusModal) {
+            statusModal.classList.add('hidden');
+            statusModal.classList.remove('flex');
+        }
         status.innerHTML = `<span class="text-rose-600 font-bold">Error uploading students: ${err.message}</span>`;
         alert("Upload error: " + err.message);
     } finally {
