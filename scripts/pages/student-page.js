@@ -1448,26 +1448,57 @@ const studentPwa = registerPortalForPwa('student', {
                 const todayDate = now.getDate();
                 const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
 
-                const startDay = Math.min(daysInCurrentMonth, Math.max(1, parseInt(feeCollectionConfig.startDay, 10) || 1));
-                const rawEndDay = Math.max(startDay, parseInt(feeCollectionConfig.endDay, 10) || 10);
-                const effectiveEndDay = Math.min(daysInCurrentMonth, rawEndDay);
+                const configuredStartDay = Math.min(31, Math.max(1, parseInt(feeCollectionConfig.startDay, 10) || 1));
+                const configuredEndDay = Math.min(31, Math.max(1, parseInt(feeCollectionConfig.endDay, 10) || 10));
+                const isCrossMonth = configuredEndDay < configuredStartDay;
+
+                const startDay = Math.min(daysInCurrentMonth, configuredStartDay);
+                const effectiveEndDay = isCrossMonth ? configuredEndDay : Math.min(daysInCurrentMonth, configuredEndDay);
                 const notifyMode = feeCollectionConfig.notifyMode || 'month_start';
                 const notifyDaysBefore = Math.min(28, Math.max(1, parseInt(feeCollectionConfig.notifyDaysBefore, 10) || 5));
 
                 let triggerDay = 1;
-                if (notifyMode === 'month_start') {
-                    triggerDay = 1;
-                } else if (notifyMode === 'collection_start') {
-                    triggerDay = startDay;
-                } else if (notifyMode === 'days_before_end') {
-                    triggerDay = Math.max(1, effectiveEndDay - notifyDaysBefore);
-                } else if (notifyMode === 'days_before_month_end') {
-                    triggerDay = Math.max(1, daysInCurrentMonth - notifyDaysBefore + 1);
+                let shouldNotifyCurrentMonth = false;
+                let isPastCollectionWindowThisMonth = false;
+
+                if (isCrossMonth) {
+                    // For cross-month window (e.g., 25th of current month to 5th of next month):
+                    // Current month's window ends in the next month, so it is NOT past collection window in this month.
+                    isPastCollectionWindowThisMonth = false;
+                    if (notifyMode === 'month_start') {
+                        triggerDay = 1;
+                        shouldNotifyCurrentMonth = todayDate >= 1;
+                    } else if (notifyMode === 'collection_start') {
+                        triggerDay = startDay;
+                        shouldNotifyCurrentMonth = todayDate >= startDay;
+                    } else if (notifyMode === 'days_before_month_end') {
+                        triggerDay = Math.max(1, daysInCurrentMonth - notifyDaysBefore + 1);
+                        shouldNotifyCurrentMonth = todayDate >= triggerDay;
+                    } else if (notifyMode === 'days_before_end') {
+                        const nextMonthEndDate = new Date(now.getFullYear(), now.getMonth() + 1, effectiveEndDay, 23, 59, 59);
+                        const triggerTime = nextMonthEndDate.getTime() - (notifyDaysBefore * 24 * 60 * 60 * 1000);
+                        shouldNotifyCurrentMonth = now.getTime() >= triggerTime;
+                        const triggerDateObj = new Date(triggerTime);
+                        triggerDay = triggerDateObj.getMonth() === now.getMonth() ? triggerDateObj.getDate() : 1;
+                    }
+                } else {
+                    // Single month window (e.g. 1st to 10th of same month):
+                    if (notifyMode === 'month_start') {
+                        triggerDay = 1;
+                    } else if (notifyMode === 'collection_start') {
+                        triggerDay = startDay;
+                    } else if (notifyMode === 'days_before_end') {
+                        triggerDay = Math.max(1, effectiveEndDay - notifyDaysBefore);
+                    } else if (notifyMode === 'days_before_month_end') {
+                        triggerDay = Math.max(1, daysInCurrentMonth - notifyDaysBefore + 1);
+                    }
+                    isPastCollectionWindowThisMonth = todayDate > effectiveEndDay;
+                    shouldNotifyCurrentMonth = todayDate >= triggerDay || isPastCollectionWindowThisMonth;
                 }
 
-                const isPastCollectionWindowThisMonth = todayDate > effectiveEndDay;
-                const shouldNotifyCurrentMonth = todayDate >= triggerDay || isPastCollectionWindowThisMonth;
-                const windowText = `${formatOrdinalDayLabel(startDay)} to ${formatOrdinalDayLabel(effectiveEndDay)}`;
+                const windowText = isCrossMonth
+                    ? `${formatOrdinalDayLabel(startDay)} to ${formatOrdinalDayLabel(effectiveEndDay)} of next month`
+                    : `${formatOrdinalDayLabel(startDay)} to ${formatOrdinalDayLabel(effectiveEndDay)}`;
 
                 const currentMonthDue = currentSummary.dueItems.find((due) => due.monthIndex === now.getMonth());
                 if (currentMonthDue && shouldNotifyCurrentMonth) {
@@ -1479,7 +1510,7 @@ const studentPwa = registerPortalForPwa('student', {
                             type: 'fee',
                             icon: 'fa-clock',
                             title: `${monthLabel} Fee Overdue`,
-                            message: `${monthLabel} fee of ${formatCurrency(currentMonthDue.amount)} is overdue (Collection window: ${windowText} of this month). Please settle it at the earliest.`,
+                            message: `${monthLabel} fee of ${formatCurrency(currentMonthDue.amount)} is overdue (Collection window: ${windowText}). Please settle it at the earliest.`,
                             timestamp: nowTs,
                             target: 'fees-page'
                         });
@@ -1489,7 +1520,7 @@ const studentPwa = registerPortalForPwa('student', {
                             type: 'fee',
                             icon: 'fa-calendar-check',
                             title: `${monthLabel} Fee Due (${windowText})`,
-                            message: `${monthLabel} fee of ${formatCurrency(currentMonthDue.amount)} is due for this month (Collection dates: ${windowText}). Please pay before the ${formatOrdinalDayLabel(effectiveEndDay)}.`,
+                            message: `${monthLabel} fee of ${formatCurrency(currentMonthDue.amount)} is due for this month (Collection dates: ${windowText}). Please pay before the deadline.`,
                             timestamp: alertTriggerDate.getTime(),
                             target: 'fees-page'
                         });
@@ -1513,20 +1544,47 @@ const studentPwa = registerPortalForPwa('student', {
                         return;
                     }
 
-                    // If monthly fee remains unpaid after that month has passed in academic order,
-                    // keep showing overdue notification until settled.
+                    // Check if unpaid monthly fee is overdue
                     const dueMonthOrderIndex = monthOrder.indexOf(due.monthIndex);
-                    const isOverdueMonthly = currentMonthOrderIndex >= 0 && dueMonthOrderIndex >= 0 && dueMonthOrderIndex < currentMonthOrderIndex;
-                    if (isOverdueMonthly) {
-                        alerts.push({
-                            id: `fee-overdue-${currentYear}-${due.monthIndex}-${due.item?.key || 'month'}`,
-                            type: 'fee',
-                            icon: 'fa-clock',
-                            title: `${formatMonthFeeCardName(due.name)} Fee Overdue`,
-                            message: `${formatMonthFeeCardName(due.name)} fee of ${formatCurrency(due.amount)} is overdue from previous month(s). Please clear it immediately.`,
-                            timestamp: nowTs,
-                            target: 'fees-page'
-                        });
+                    if (currentMonthOrderIndex >= 0 && dueMonthOrderIndex >= 0 && dueMonthOrderIndex < currentMonthOrderIndex) {
+                        const monthLabel = formatMonthFeeCardName(due.name);
+                        const isImmediatePreviousMonth = dueMonthOrderIndex === (currentMonthOrderIndex - 1);
+
+                        // For cross-month cycles, immediate previous month's fee is still within collection window until effectiveEndDay of this month!
+                        if (isCrossMonth && isImmediatePreviousMonth) {
+                            if (todayDate <= effectiveEndDay) {
+                                alerts.push({
+                                    id: `fee-prev-due-${currentYear}-${due.monthIndex + 1}-${due.item?.key || due.name}`,
+                                    type: 'fee',
+                                    icon: 'fa-calendar-check',
+                                    title: `${monthLabel} Fee Due (Ends ${formatOrdinalDayLabel(effectiveEndDay)})`,
+                                    message: `${monthLabel} fee of ${formatCurrency(due.amount)} is due (Collection window deadline: ${formatOrdinalDayLabel(effectiveEndDay)} of this month). Please settle it before the deadline.`,
+                                    timestamp: nowTs,
+                                    target: 'fees-page'
+                                });
+                            } else {
+                                alerts.push({
+                                    id: `fee-overdue-${currentYear}-${due.monthIndex}-${due.item?.key || 'month'}`,
+                                    type: 'fee',
+                                    icon: 'fa-clock',
+                                    title: `${monthLabel} Fee Overdue`,
+                                    message: `${monthLabel} fee of ${formatCurrency(due.amount)} is overdue (Collection window ended on the ${formatOrdinalDayLabel(effectiveEndDay)}). Please clear it immediately.`,
+                                    timestamp: nowTs,
+                                    target: 'fees-page'
+                                });
+                            }
+                        } else {
+                            // Single month cycle or older past months
+                            alerts.push({
+                                id: `fee-overdue-${currentYear}-${due.monthIndex}-${due.item?.key || 'month'}`,
+                                type: 'fee',
+                                icon: 'fa-clock',
+                                title: `${monthLabel} Fee Overdue`,
+                                message: `${monthLabel} fee of ${formatCurrency(due.amount)} is overdue from previous month(s). Please clear it immediately.`,
+                                timestamp: nowTs,
+                                target: 'fees-page'
+                            });
+                        }
                     }
                 });
             }

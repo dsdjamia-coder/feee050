@@ -8084,12 +8084,16 @@ const populateFeeCollectionScheduleSelectors = () => {
     const startSel = document.getElementById('fee-collect-start-day');
     const endSel = document.getElementById('fee-collect-end-day');
     if (!startSel || !endSel) return;
-    const dayOptions = Array.from({ length: 31 }, (_, idx) => {
+    const startOptions = Array.from({ length: 31 }, (_, idx) => {
         const d = idx + 1;
         return `<option value="${d}">${formatOrdinalDay(d)} of every month</option>`;
     }).join('');
-    startSel.innerHTML = dayOptions;
-    endSel.innerHTML = dayOptions + `<option value="31">Last Day of Month (28th–31st)</option>`;
+    const endOptions = Array.from({ length: 30 }, (_, idx) => {
+        const d = idx + 1;
+        return `<option value="${d}">${formatOrdinalDay(d)}</option>`;
+    }).join('') + `<option value="31">Last Day of Month (28th–31st)</option>`;
+    startSel.innerHTML = startOptions;
+    endSel.innerHTML = endOptions;
     startSel.value = '1';
     endSel.value = '10';
 };
@@ -8103,15 +8107,13 @@ const updateFeeScheduleLiveSummary = () => {
     const daysInput = document.getElementById('fee-notify-days-before');
     const badgeEl = document.getElementById('fee-collection-window-badge');
     const summaryTextEl = document.getElementById('fee-schedule-live-summary-text');
+    const endHintEl = document.getElementById('fee-collect-end-day-hint');
 
     if (!startSel || !endSel || !modeSel) return;
 
     const startDay = Math.min(31, Math.max(1, parseInt(startSel.value, 10) || 1));
-    let endDay = Math.min(31, Math.max(1, parseInt(endSel.value, 10) || 10));
-    if (endDay < startDay) {
-        endDay = startDay;
-        endSel.value = String(endDay);
-    }
+    const endDay = Math.min(31, Math.max(1, parseInt(endSel.value, 10) || 10));
+    const isCrossMonth = endDay < startDay;
 
     const mode = modeSel.value || 'month_start';
     const daysBefore = Math.min(28, Math.max(1, parseInt(daysInput?.value, 10) || 5));
@@ -8126,8 +8128,21 @@ const updateFeeScheduleLiveSummary = () => {
 
     const startLabel = formatOrdinalDay(startDay);
     const endLabel = endDay === 31 ? 'Last Day (31st)' : formatOrdinalDay(endDay);
+    
     if (badgeEl) {
-        badgeEl.textContent = `Every Month: ${startLabel} to ${endLabel}`;
+        if (isCrossMonth) {
+            badgeEl.innerHTML = `<i class="fas fa-arrow-right text-[10px] text-amber-600"></i> Every Month: ${startLabel} to ${endLabel} of next month`;
+            badgeEl.className = 'inline-flex items-center gap-1.5 text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300 px-3 py-1 rounded-full self-start sm:self-auto shadow-sm';
+        } else {
+            badgeEl.innerHTML = `<i class="fas fa-calendar-check text-[10px] text-blue-600"></i> Every Month: ${startLabel} to ${endLabel}`;
+            badgeEl.className = 'inline-flex items-center gap-1.5 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full self-start sm:self-auto';
+        }
+    }
+
+    if (endHintEl) {
+        endHintEl.textContent = isCrossMonth
+            ? `Collection window spans into the following month: deadline is on the ${endLabel} of next month.`
+            : `Last date of monthly collection window (after this date, fee is treated as overdue).`;
     }
 
     let alertTimingSummary = '';
@@ -8136,14 +8151,21 @@ const updateFeeScheduleLiveSummary = () => {
     } else if (mode === 'collection_start') {
         alertTimingSummary = `Student fee alert notifications start on the ${startLabel} of every month (Collection Start Date) and continue daily until paid.`;
     } else if (mode === 'days_before_end') {
-        const triggerDay = Math.max(1, endDay - daysBefore);
-        alertTimingSummary = `Student fee alert notifications start ${daysBefore} day(s) before the collection end date (from the ${formatOrdinalDay(triggerDay)} of every month) and continue daily until paid.`;
+        if (isCrossMonth) {
+            alertTimingSummary = `Student fee alert notifications start ${daysBefore} day(s) before the collection deadline (${endLabel} of the following month) and continue daily until paid.`;
+        } else {
+            const triggerDay = Math.max(1, endDay - daysBefore);
+            alertTimingSummary = `Student fee alert notifications start ${daysBefore} day(s) before the collection end date (from the ${formatOrdinalDay(triggerDay)} of every month) and continue daily until paid.`;
+        }
     } else if (mode === 'days_before_month_end') {
         alertTimingSummary = `Student fee alert notifications start ${daysBefore} day(s) before the end of each month and continue daily until paid.`;
     }
 
     if (summaryTextEl) {
-        summaryTextEl.textContent = `Regular monthly fee collection runs from the ${startLabel} to the ${endLabel} of every month. ${alertTimingSummary}`;
+        const cycleDescription = isCrossMonth
+            ? `Regular monthly fee collection runs from the ${startLabel} of every month to the ${endLabel} of the following month (spans into next month).`
+            : `Regular monthly fee collection runs from the ${startLabel} to the ${endLabel} of every month.`;
+        summaryTextEl.textContent = `${cycleDescription} ${alertTimingSummary}`;
     }
 };
 
@@ -8157,7 +8179,7 @@ updateFeeScheduleLiveSummary();
 document.getElementById('save-fee-config-btn').addEventListener('click', async () => {
     if(!requirePermission('fees.manage')) return;
     const startDay = Math.min(31, Math.max(1, parseInt(document.getElementById('fee-collect-start-day')?.value, 10) || 1));
-    const endDay = Math.min(31, Math.max(startDay, parseInt(document.getElementById('fee-collect-end-day')?.value, 10) || 10));
+    const endDay = Math.min(31, Math.max(1, parseInt(document.getElementById('fee-collect-end-day')?.value, 10) || 10));
     const notifyMode = document.getElementById('fee-notify-mode')?.value || 'month_start';
     const notifyDaysBefore = Math.min(28, Math.max(1, parseInt(document.getElementById('fee-notify-days-before')?.value, 10) || 5));
 
@@ -8171,7 +8193,8 @@ document.getElementById('save-fee-config-btn').addEventListener('click', async (
         feeNotifyMode: notifyMode,
         feeNotifyDaysBefore: notifyDaysBefore
     }, {merge: true});
-    await logAuditEvent({ category: 'fee', action: 'fee.config.save', entityType: 'settings', entityId: 'config', message: `Default fee configuration updated (Collection: Day ${startDay} to ${endDay}, Notify: ${notifyMode}).` });
+    const spanNote = endDay < startDay ? ` (Spans into next month: Day ${startDay} to Day ${endDay})` : ` (Day ${startDay} to Day ${endDay})`;
+    await logAuditEvent({ category: 'fee', action: 'fee.config.save', entityType: 'settings', entityId: 'config', message: `Default fee configuration updated${spanNote}, Notify: ${notifyMode}).` });
     alert("Fee Configuration Saved!");
 });
 
