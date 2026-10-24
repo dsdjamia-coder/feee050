@@ -75,6 +75,9 @@ const PAGE_PERMISSIONS = {
 };
 
 let students = [], classes = [], studentGroups = [], feeItems = [], allStaff = [], allPayments = [];
+let allStudentGroups = [];
+let examResultsCountCache = null;
+let lastResultsCountFetch = 0;
 let resultSchemas = [];
 let rawStudents = [];
 let webContent = { notices: [], gallery: [], directoryCategories: [] };
@@ -10749,7 +10752,28 @@ const renderModularRestorePreview = (payload) => {
     updateRestoreSelectionUI();
 };
 
-const renderBackupCategoryCounts = () => {
+async function fetchExamResultsAndSchemasCount() {
+    try {
+        lastResultsCountFetch = Date.now();
+        const [resultsSnap, schemasSnap] = await Promise.all([
+            getDocs(collection(db, `${BASE_PATH}/examResults`)),
+            getDocs(collection(db, `${BASE_PATH}/resultSchemas`))
+        ]);
+        const resultsCount = resultsSnap.size || 0;
+        const schemasCount = schemasSnap.size || 0;
+        examResultsCountCache = resultsCount + schemasCount;
+        const el = document.getElementById('count-backup-results');
+        if (el) el.textContent = `${examResultsCountCache} records`;
+        return examResultsCountCache;
+    } catch (e) {
+        console.warn('Failed to fetch exam results count:', e);
+        const el = document.getElementById('count-backup-results');
+        if (el && examResultsCountCache === null) el.textContent = '0 records';
+        return 0;
+    }
+}
+
+function renderBackupCategoryCounts() {
     const setBadge = (id, count) => {
         const el = document.getElementById(id);
         if (el) el.textContent = count !== undefined ? `${count} records` : '--';
@@ -10757,9 +10781,26 @@ const renderBackupCategoryCounts = () => {
 
     setBadge('count-backup-students', rawStudents?.length ?? students?.length ?? 0);
     setBadge('count-backup-payments', allPayments?.length ?? 0);
-    setBadge('count-backup-results', (examResultsCache?.length || 0) + (resultSchemas?.length || 0));
+
+    // Results & Schemas live count
+    if (examResultsCountCache !== null) {
+        setBadge('count-backup-results', examResultsCountCache);
+    } else {
+        const inMem = (examResultsCache?.length || 0) + (resultSchemas?.length || 0);
+        if (inMem > 0) {
+            setBadge('count-backup-results', inMem);
+        } else {
+            const el = document.getElementById('count-backup-results');
+            if (el) el.textContent = 'Loading...';
+        }
+    }
+    // Refresh results count asynchronously if older than 10 seconds or not loaded
+    if (Date.now() - lastResultsCountFetch > 10000) {
+        fetchExamResultsAndSchemasCount();
+    }
+
     setBadge('count-backup-staff', allStaff?.length ?? 0);
-    setBadge('count-backup-groups', studentGroups?.length ?? 0);
+    setBadge('count-backup-groups', (allStudentGroups?.length || studentGroups?.length || 0));
 
     const webCount = (webContent?.notices?.length || 0) + (webContent?.gallery?.length || 0) + (publicDirectoryEntries?.length || 0);
     setBadge('count-backup-website', webCount);
@@ -10770,7 +10811,7 @@ const renderBackupCategoryCounts = () => {
     if (configEl) configEl.textContent = `${feeItems?.length || 0} fee items`;
 
     setBadge('count-backup-audit', auditLogs?.length ?? 0);
-};
+}
 
 const getSelectedBackupCategories = () => {
     const checkboxes = document.querySelectorAll('.backup-category-cb:checked');
@@ -12024,6 +12065,7 @@ onAuthStateChanged(auth, async (user) => {
             auditLogs = auditSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
             renderAuditLogList();
             renderDashboard();
+            renderBackupCategoryCounts();
         });
 
         onSnapshot(academicYearsRef, async (academicSnap) => {
@@ -12041,6 +12083,7 @@ onAuthStateChanged(auth, async (user) => {
                 await persistAcademicYears();
                 renderAcademicYears();
                 refreshAcademicYearScopedData();
+                renderBackupCategoryCounts();
                 return;
             }
 
@@ -12076,6 +12119,7 @@ onAuthStateChanged(auth, async (user) => {
             if (endMonthSelect) endMonthSelect.value = String(activeYearRecord.endMonth ?? 4);
             renderAcademicYears();
             refreshAcademicYearScopedData();
+            renderBackupCategoryCounts();
         });
 
         onSnapshot(configRef, (docSnap) => {
@@ -12162,6 +12206,7 @@ onAuthStateChanged(auth, async (user) => {
             feeItems = existingItems;
             renderDashboard();
             if(!document.getElementById('fee-settings-page').classList.contains('hidden')) renderFeeItemsManagement();
+            renderBackupCategoryCounts();
         });
 
         onSnapshot(doc(db, `${BASE_PATH}/settings`, 'content'), (snap) => {
@@ -12169,6 +12214,7 @@ onAuthStateChanged(auth, async (user) => {
             document.getElementById('web-about').value = webContent.description || '';
             renderWebNotices(); renderWebGallery();
             renderDirectoryCategories();
+            renderBackupCategoryCounts();
         });
         onSnapshot(doc(db, `${BASE_PATH}/settings`, 'categoryAuthConfig'), (snap) => {
             categoryAuthConfig = normalizeCategoryAuthConfig(snap.exists() ? snap.data() : {});
@@ -12182,12 +12228,14 @@ onAuthStateChanged(auth, async (user) => {
         onSnapshot(collection(db, `${BASE_PATH}/publicDirectory`), (snap) => {
             publicDirectoryEntries = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             renderDirectoryEntries();
+            renderBackupCategoryCounts();
         });
 
         onSnapshot(collection(db, `${BASE_PATH}/students`), (snap) => {
             rawStudents = snap.docs.map(d => ({id: d.id, ...d.data()}));
             refreshAcademicYearScopedData();
             renderAcademicYears();
+            renderBackupCategoryCounts();
         });
 
         onSnapshot(collection(db, `${BASE_PATH}/staff`), async (snap) => {
@@ -12196,18 +12244,22 @@ onAuthStateChanged(auth, async (user) => {
             renderDashboard();
             renderAcademicYears();
             if(!document.getElementById('staff-management-page')?.classList.contains('hidden') || !document.getElementById('manage-staff-page')?.classList.contains('hidden')) renderStaffList();
+            renderBackupCategoryCounts();
         });
 
         onSnapshot(collection(db, `${BASE_PATH}/studentGroups`), (snap) => {
             const rawGroups = snap.docs.map(d => ({id: d.id, ...d.data()}));
+            allStudentGroups = rawGroups;
             studentGroups = Array.from(new Map(rawGroups.map(g => [g.id, g])).values())
                 .filter((group) => (group.academicYear || currentAcademicYear) === (activeAcademicYear || currentAcademicYear));
             renderDashboard();
             if(!document.getElementById('manage-groups-page').classList.contains('hidden')) renderStudentGroups();
+            renderBackupCategoryCounts();
         });
 
         onSnapshot(collection(db, `${BASE_PATH}/payments`), (snap) => {
             allPayments = snap.docs.map(d => ({id: d.id, ...d.data()}));
+            renderBackupCategoryCounts();
         });
 
         // Result module fully moved to standalone result.html/result-page.js.

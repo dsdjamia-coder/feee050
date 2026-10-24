@@ -1,49 +1,38 @@
-# Implementation Plan: Permanent Categorized Grid for Backup & Recovery [COMPLETED]
+# Implementation Plan: Security & Settings Reorganization & Backup Live Counts [COMPLETED]
 
-Security & Settings പേജിലെ **Backup & Recovery** സെക്ഷൻ, **Institutional Data Purge & Reset** സെക്ഷന് സമാനമായി, പേജിൽ നേരിട്ട് ദൃശ്യമാകുന്ന രീതിയിൽ (Permanently Visible Categorized Grid) കാറ്റഗറി കാർഡുകളും ചെക്ക്ബോക്സുകളും നൽകി വിജയകരമായി പൂർത്തിയാക്കി.
+സെക്യൂരിറ്റി ആൻഡ് സെറ്റിംഗ്സ് (`Security & Settings`) പേജ് താങ്കൾ നിർദ്ദേശിച്ചതുപോലെ പുനഃക്രമീകരിക്കുകയും, ഡാറ്റാ പർജ്ജ് കാർഡ് കണ്ടെയ്‌നറിൽ നിന്ന് പുറത്തുപോയ പ്രശ്നം പരിഹരിക്കുകയും, ബാക്കപ്പ് സെന്ററിലെ എല്ലാ കാറ്റഗറികളുടെയും ലൈവ് കൗണ്ടുകൾ കൃത്യമായി കാണിക്കുകയും ചെയ്യുന്ന പ്രവർത്തനങ്ങൾ വിജയകരമായി പൂർത്തിയാക്കി.
 
 ---
 
-### പൂർത്തിയാക്കിയ ഘട്ടങ്ങൾ (Completed Implementation)
+### പൂർത്തിയാക്കിയ മാറ്റങ്ങൾ (Completed Implementation Details)
 
-#### 1. Permanent Classified Category Grid in `admin.html`
-- **Institutional Backup & Recovery Center** പൂർണ്ണമായും പേജിൽ സ്ഥിരമായി കാണാവുന്ന രൂപത്തിലേക്ക് മാറ്റി:
-  - **Header & Live Selection Badge**: `#backup-selected-count-badge` (തിരഞ്ഞെടുത്ത കാറ്റഗറികളുടെ എണ്ണം തത്സമയം കാണിക്കുന്നു).
-  - **Master Toggle Bar**:
-    - `[x] Select All Categories (Full System Backup & Recovery)` (`#backup-select-all`)
-  - **9 Granular Category Cards (നേരിട്ട് കാണാവുന്നത്)**:
-    1. **Students & Admissions** (`students`) - Live student count (`#count-backup-students`)
-    2. **Fee Records & Transactions** (`payments`) - Live payment count (`#count-backup-payments`)
-    3. **Exam Results & Schemas** (`examResults`) - Live result & schema count (`#count-backup-results`)
-    4. **Staff Directory & Accounts** (`staff`) - Live staff count (`#count-backup-staff`)
-    5. **Student Groups & Batches** (`studentGroups`) - Live groups count (`#count-backup-groups`)
-    6. **Website & Public Directory** (`website`) - Notices, gallery & directory count (`#count-backup-website`)
-    7. **Academic Years & Sessions** (`academicYears`) - Academic year count (`#count-backup-years`)
-    8. **System Settings & Configuration** (`config`) - Fee items & config count (`#count-backup-config`)
-    9. **System Audit Trail Logs** (`auditLogs`) - System audit log count (`#count-backup-audit`)
-  - **Action Buttons**:
-    - **"Export Backup (Selected / Full)"** (`#backup-export-btn`): തിരഞ്ഞെടുത്ത കാറ്റഗറികൾ മാത്രം (അല്ലെങ്കിൽ പൂർണ്ണമായും) JSON ഫയലായി ഡൗൺലോഡ് ചെയ്യുന്നു.
-    - **"Upload & Restore Backup File"** (`#restore-file-input`): ബാക്കപ്പ് ഫയൽ അപ്‌ലോഡ് ചെയ്യുമ്പോൾ ഫയലിലുള്ള കാറ്റഗറികൾ വിശകലനം ചെയ്ത് പ്രിവ്യൂ നൽകുന്നു.
-  - **Snapshot Restore Preview Panel (`#restore-preview`)**:
-    - അപ്‌ലോഡ് ചെയ്ത ഫയലിന്റെ തീയതി, പതിപ്പ്, ലഭ്യമായ കാറ്റഗറികൾ എന്നിവയുടെ വിവരണം.
-    - **"Restore Selected Categories Only"** ബട്ടൺ.
-    - **"Restore All Categories (Full Snapshot)"** ബട്ടൺ.
-    - **"Cancel"** ബട്ടൺ.
-    - പ്രോഗ്രസ്സ് ബാറും തത്സമയ സ്റ്റാറ്റസ് മെസ്സേജുകളും.
-  - **System Audit Trail**:
-    - ബാക്കപ്പ് സെന്ററിന് താഴെ സ്വതന്ത്രമായ ഫുൾ-വിഡ്ത്ത് കാർഡായി ഭംഗിയായി നിലനിർത്തി.
+#### 1. 3-Column Top Row on Desktop (`admin.html`)
+- **ഡെസ്ക്ടോപ്പ് വ്യൂവിൽ ഒരൊറ്റ നിരയിൽ 3 കാർഡുകൾ (`grid-cols-1 lg:grid-cols-3 gap-4`):**
+  1. **Column 1: Admin Account & Credentials** (`#admin-role-list`, credentials update form).
+  2. **Column 2: Session Monitor & Devices** (`#session-monitor-started`, `#session-device-list`, session watchdog controls).
+  3. **Column 3: System Audit Trail** (`#audit-log-summary`, `#audit-filter-action`, `#audit-search-input`, `#audit-log-list`, clear logs control).
+- കാർഡുകൾ മൂന്നും ഒരേ നിരയിൽ കൃത്യമായ ഉയരത്തിലും സ്ക്രോളിംഗ് സൗകര്യത്തോടും കൂടി മനോഹരമായി ക്രമീകരിച്ചു.
 
-#### 2. JavaScript Logic in `scripts/pages/admin-page.js`
-- `renderBackupCategoryCounts()`: പേജ് ലോഡ് ചെയ്യുമ്പോഴും സെക്യൂരിറ്റി സെറ്റിംഗ്സ് തുറക്കുമ്പോഴും 9 കാറ്റഗറികളിലെയും നിലവിലെ ഡാറ്റാബേസ് കൗണ്ടുകൾ ലൈവായി കാർഡുകളിൽ കാണിക്കുന്നു.
-- `getSelectedBackupCategories()` & `updateBackupSelectionUI()`: ഉപയോക്താവ് ചെക്ക്ബോക്സുകൾ മാറ്റുമ്പോൾ ബാഡ്ജ് തത്സമയം അപ്‌ഡേറ്റ് ചെയ്യുകയും, മാസ്റ്റർ ചെക്ക്ബോക്സ് ഇൻഡിറ്റർമിനേറ്റ്/സെലക്ട് സ്റ്റാറ്റസ് പാലിക്കുകയും ചെയ്യുന്നു.
-- `buildBackupPayload(targetCategories)`: ഉപയോക്താവ് തിരഞ്ഞെടുത്ത കാറ്റഗറികൾ മാത്രം ഉൾപ്പെടുത്തിക്കൊണ്ട് ക്ലീൻ JSON ബാക്കപ്പ് ജനറേറ്റ് ചെയ്യുന്നു.
-- ഫയൽ ഇംപോർട്ട് ഹാൻഡ്‌ലർ: അപ്‌ലോഡ് ചെയ്യുന്ന ഫയലിലെ കാറ്റഗറികൾ പരിശോധിച്ച്, നിലവിൽ ചെക്ക് ചെയ്തിട്ടുള്ള കാറ്റഗറികൾ മാത്രം റീസ്റ്റോർ ചെയ്യാനും അല്ലെങ്കിൽ മുഴുവൻ റീസ്റ്റോർ ചെയ്യാനും ഉപയോക്താവിന് കൃത്യമായ നിയന്ത്രണം നൽകുന്നു.
-- സൂപ്പർ അഡ്മിൻ ലോഗിൻ ക്രഡൻഷ്യലുകൾ പരിപൂർണ്ണമായി സംരക്ഷിക്കപ്പെടുന്നു.
-- `activateAdminPage('security-settings')`: സെക്യൂരിറ്റി ടാബിലേക്ക് എത്തുമ്പോൾ തന്നെ കൗണ്ടുകളും സെലക്ഷൻ യുഐയും ഓട്ടോമാറ്റിക്കായി റിഫ്രഷ് ചെയ്യുന്നു.
+#### 2. Backup & Data Purge Cards Together at the Bottom (`admin.html`)
+- **മുകളിൽ 3 കാർഡുകൾ അടങ്ങിയ ഗ്രിഡിന് തൊട്ടുതാഴെ:**
+  - **Institutional Backup & Recovery Center** (ഫുൾ വിഡ്ത്ത് മോഡുലാർ കാർഡ്).
+  - **Institutional Data Purge & Reset** (ഫുൾ വിഡ്ത്ത് ഡേഞ്ചർ സോൺ കാർഡ്).
+- രണ്ടും ഒന്നിന് താഴെ ഒന്നായി അടുത്തടുത്ത് ഭംഗിയായി ക്രമീകരിച്ചു.
+
+#### 3. Layout Leak Bug Fix (`admin.html`)
+- **പ്രശ്നത്തിന്റെ കാരണം:** System Audit Trail കാർഡിന്റെ അവസാനം അബദ്ധത്തിൽ വന്ന ഒരു അധിക ക്ലോസിംഗ് ടാഗ് (`</div>` at line 1938) കാരണം `<section id="security-settings-page">` നേരത്തെ തന്നെ ക്ലോസ് ആവുകയും, അതിനു താഴെയുണ്ടായിരുന്ന `Institutional Data Purge & Reset` കാർഡ് സെക്ഷന് പുറത്തേക്ക് തള്ളപ്പെടുകയും ചെയ്തിരുന്നു.
+- **പരിഹാരം:** അനാവശ്യമായ ക്ലോസിംഗ് ടാഗ് പൂർണ്ണമായി നീക്കം ചെയ്തു. ഇപ്പോൾ എല്ലാ കാർഡുകളും `#security-settings-page` എന്ന സെക്ഷൻ കണ്ടെയ്നറിനുള്ളിൽ ഭദ്രമായി നിലകൊള്ളുന്നു.
+
+#### 4. Live Record Counts in Backup Center (`scripts/pages/admin-page.js`)
+- **പ്രശ്നത്തിന്റെ കാരണം:** പരീക്ഷാ റിസൾട്ടുകളും സ്കീമകളും വേറെ പേജിലേക്ക് മാറ്റിയിരുന്നതിനാൽ അഡ്മിൻ പേജിന്റെ മെമ്മറിയിൽ `examResultsCache` ശൂന്യമായിരുന്നു (`0`). കൂടാതെ പെയ്‌മെന്റ്സ്, സ്റ്റുഡന്റ്സ്, സ്റ്റാഫ് മുതലായവയുടെ റിയൽ-ടൈം ലിസണറുകൾ വരുമ്പോൾ ബാക്കപ്പ് കാർഡുകളിലെ കൗണ്ടുകൾ റിഫ്രഷ് ചെയ്യപ്പെട്ടിരുന്നില്ല.
+- **പരിഹാരം:**
+  - `fetchExamResultsAndSchemasCount()` എന്ന അസിൻക്രണസ് ഫംഗ്ഷൻ വഴി Firestore-ൽ നിന്ന് `examResults`, `resultSchemas` എന്നിവയുടെ കൃത്യമായ ഡോക്യുമെന്റ് എണ്ണം ശേഖരിക്കുന്നു.
+  - എല്ലാ അക്കാദമിക് വർഷങ്ങളിലെയും മൊത്തം സ്റ്റുഡന്റ് ഗ്രൂപ്പുകളുടെ എണ്ണം കണക്കാക്കാൻ `allStudentGroups` നടപ്പിലാക്കി.
+  - `renderBackupCategoryCounts()` ഫംഗ്ഷൻ ഡിക്ലറേഷനായി മാറ്റി ഹോയിസ്റ്റ് ചെയ്യുകയും, Firestore snapshot ലിസണറുകൾ (`students`, `payments`, `staff`, `studentGroups`, `academicYears`, `auditLogs`, `website`, `settings`) വരുന്ന ഓരോ സമയത്തും, ഒപ്പം `security-settings` ടാബ് ഓപ്പൺ ചെയ്യുമ്പോഴും ബാക്കപ്പ് കൗണ്ടുകൾ തത്സമയം കൃത്യമായി അപ്‌ഡേറ്റ് ചെയ്യപ്പെടുന്നു.
 
 ---
 
 ### പരിശോധനാ ഫലങ്ങൾ (Verification Results)
-- `compile_applet`: Build succeeded (വിജയകരമായി പൂർത്തിയായി).
-- `lint_applet` (`tsc --noEmit`): യാതൊരുവിധ സിന്റാക്സ്/ടൈപ്പ് എററുകളുമില്ലാതെ 0 errors ആയി പാസ്സായി.
-- UI ടെക്സ്റ്റുകൾ: എല്ലാ ബട്ടണുകളും, കാറ്റഗറി ടൈറ്റിലുകളും, ബാഡ്ജുകളും 100% ഇംഗ്ലീഷ് ഭാഷയിൽ മാത്രമായി ക്രമീകരിച്ചു.
+- **`compile_applet`**: Build succeeded (വിജയകരമായി പൂർത്തിയായി).
+- **`lint_applet` (`tsc --noEmit`)**: 0 lint / type errors.
+- **UI Integrity**: സിസ്റ്റത്തിലെ എല്ലാ ബട്ടണുകളും, ലേബലുകളും, ബാഡ്ജുകളും 100% ഇംഗ്ലീഷിൽ മാത്രം നിലനിർത്തിയിരിക്കുന്നു.
