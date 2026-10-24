@@ -3332,6 +3332,7 @@ function validateAndBuildStudent(extracted, rowIdx, selectedBulkClass, existingC
         name: rawName ? rawName.toUpperCase().trim() : '',
         gender: genderVal,
         class: selectedBulkClass,
+        studentClass: selectedBulkClass,
         uid: uidVal,
         father: fatherVal,
         mother: motherVal ? motherVal.toUpperCase() : '',
@@ -3968,10 +3969,11 @@ async function executeBulkImport(datasetToUpload, mergePolicy) {
             const batch = writeBatch(db);
 
             chunk.forEach((s) => {
+                const effectiveClass = s.class || s.studentClass || selectedBulkClass || '';
                 const cleanPayload = {
-                    name: s.name,
-                    class: s.class,
-                    studentClass: s.studentClass,
+                    name: s.name || '',
+                    class: effectiveClass,
+                    studentClass: effectiveClass,
                     status: s.status || 'Active',
                     gender: s.gender || 'Male',
                     uid: s.uid || '',
@@ -3987,7 +3989,7 @@ async function executeBulkImport(datasetToUpload, mergePolicy) {
                     adhaar: s.adhaar || '',
                     samasthaId: s.samasthaId || '',
                     photo: s.photo || '',
-                    academicYear: s.academicYear || activeAcademicYear || currentAcademicYear,
+                    academicYear: s.academicYear || activeAcademicYear || currentAcademicYear || '',
                     profile: {
                         dob: s.dob || '',
                         address: s.address || '',
