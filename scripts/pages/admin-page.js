@@ -564,54 +564,313 @@ const removeClassFromActiveAcademicYear = async (className) => {
     await persistAcademicYears();
     return true;
 };
+const BACKUP_CATEGORIES_CONFIG = {
+    students: {
+        key: 'students',
+        label: 'Students & Admissions',
+        icon: 'fa-user-graduate',
+        colorClass: 'bg-blue-100 text-blue-700',
+        badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
+        description: 'Student profiles, parent contacts, continuous history & enrollments',
+        getItemCount: (payload) => {
+            const list = payload?.collections?.students || payload?.students;
+            return Array.isArray(list) ? list.length : 0;
+        },
+        hasData: (payload) => {
+            const list = payload?.collections?.students || payload?.students;
+            return Array.isArray(list) && list.length > 0;
+        },
+        restore: async (payload, onProgress) => {
+            const list = payload?.collections?.students || payload?.students || [];
+            onProgress?.('Restoring student records and enrollments...');
+            await restoreCollectionFromPayload('students', list);
+        }
+    },
+    payments: {
+        key: 'payments',
+        label: 'Fee Records & Payments',
+        icon: 'fa-receipt',
+        colorClass: 'bg-emerald-100 text-emerald-700',
+        badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        description: 'Fee collection transactions, receipts, concessions & fee structures',
+        getItemCount: (payload) => {
+            const list = payload?.collections?.payments || payload?.payments;
+            return Array.isArray(list) ? list.length : 0;
+        },
+        hasData: (payload) => {
+            const list = payload?.collections?.payments || payload?.payments;
+            return Array.isArray(list) && list.length > 0;
+        },
+        restore: async (payload, onProgress) => {
+            const list = payload?.collections?.payments || payload?.payments || [];
+            onProgress?.('Restoring fee payments and transaction receipts...');
+            await restoreCollectionFromPayload('payments', list);
+        }
+    },
+    results: {
+        key: 'results',
+        label: 'Exam Results & Schemas',
+        icon: 'fa-poll-h',
+        colorClass: 'bg-purple-100 text-purple-700',
+        badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
+        description: 'Student exam marks, published results & grading schemas',
+        getItemCount: (payload) => {
+            const results = payload?.collections?.examResults || payload?.examResults || payload?.results || [];
+            const schemas = payload?.collections?.resultSchemas || payload?.resultSchemas || [];
+            return (Array.isArray(results) ? results.length : 0) + (Array.isArray(schemas) ? schemas.length : 0);
+        },
+        hasData: (payload) => {
+            const results = payload?.collections?.examResults || payload?.examResults || payload?.results;
+            const schemas = payload?.collections?.resultSchemas || payload?.resultSchemas;
+            const rc = payload?.settings?.resultCenter || payload?.resultCenter;
+            return (Array.isArray(results) && results.length > 0) || (Array.isArray(schemas) && schemas.length > 0) || Boolean(rc);
+        },
+        restore: async (payload, onProgress) => {
+            const results = payload?.collections?.examResults || payload?.examResults || payload?.results || [];
+            const schemas = payload?.collections?.resultSchemas || payload?.resultSchemas || [];
+            const rc = payload?.settings?.resultCenter || payload?.resultCenter;
+            if (Array.isArray(results) && results.length > 0) {
+                onProgress?.('Restoring student exam marks...');
+                await restoreCollectionFromPayload('examResults', results);
+            }
+            if (Array.isArray(schemas) && schemas.length > 0) {
+                onProgress?.('Restoring exam result schemas...');
+                await restoreCollectionFromPayload('resultSchemas', schemas);
+            }
+            if (rc && typeof rc === 'object') {
+                onProgress?.('Restoring result center configuration...');
+                await setDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter'), rc, { merge: true });
+            }
+        }
+    },
+    staff: {
+        key: 'staff',
+        label: 'Staff Directory & Accounts',
+        icon: 'fa-users-cog',
+        colorClass: 'bg-amber-100 text-amber-700',
+        badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+        description: 'Non-admin staff, teachers, roles, and PIN logins (Super Admin protected)',
+        getItemCount: (payload) => {
+            const list = payload?.collections?.staff || payload?.staff;
+            return Array.isArray(list) ? list.length : 0;
+        },
+        hasData: (payload) => {
+            const list = payload?.collections?.staff || payload?.staff;
+            return Array.isArray(list) && list.length > 0;
+        },
+        restore: async (payload, onProgress) => {
+            const list = payload?.collections?.staff || payload?.staff || [];
+            onProgress?.('Restoring staff directory & sub-accounts...');
+            await restoreCollectionFromPayload('staff', list);
+        }
+    },
+    groups: {
+        key: 'groups',
+        label: 'Student Groups & Batches',
+        icon: 'fa-layer-group',
+        colorClass: 'bg-teal-100 text-teal-800',
+        badgeClass: 'bg-teal-50 text-teal-800 border-teal-200',
+        description: 'Student groups, batch classifications, and group concession rules',
+        getItemCount: (payload) => {
+            const list = payload?.collections?.studentGroups || payload?.studentGroups;
+            return Array.isArray(list) ? list.length : 0;
+        },
+        hasData: (payload) => {
+            const list = payload?.collections?.studentGroups || payload?.studentGroups;
+            return Array.isArray(list) && list.length > 0;
+        },
+        restore: async (payload, onProgress) => {
+            const list = payload?.collections?.studentGroups || payload?.studentGroups || [];
+            onProgress?.('Restoring student groups & batch designations...');
+            await restoreCollectionFromPayload('studentGroups', list);
+        }
+    },
+    website: {
+        key: 'website',
+        label: 'Website & Directory',
+        icon: 'fa-globe',
+        colorClass: 'bg-indigo-100 text-indigo-700',
+        badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        description: 'Notice boards, photo galleries, directory categories, and entries',
+        getItemCount: (payload) => {
+            const content = payload?.settings?.content || payload?.content;
+            const entries = payload?.collections?.publicDirectory || payload?.publicDirectory || [];
+            const notices = Array.isArray(content?.notices) ? content.notices.length : 0;
+            const gallery = Array.isArray(content?.gallery) ? content.gallery.length : 0;
+            const dirCats = Array.isArray(content?.directoryCategories) ? content.directoryCategories.length : 0;
+            const dirEntries = Array.isArray(entries) ? entries.length : 0;
+            return notices + gallery + dirCats + dirEntries;
+        },
+        hasData: (payload) => {
+            const content = payload?.settings?.content || payload?.content;
+            const entries = payload?.collections?.publicDirectory || payload?.publicDirectory;
+            return Boolean(content) || (Array.isArray(entries) && entries.length > 0);
+        },
+        restore: async (payload, onProgress) => {
+            const content = payload?.settings?.content || payload?.content;
+            if (content && typeof content === 'object') {
+                onProgress?.('Restoring website content & notices...');
+                await setDoc(doc(db, `${BASE_PATH}/settings`, 'content'), content, { merge: false });
+            }
+            const entries = payload?.collections?.publicDirectory || payload?.publicDirectory || [];
+            if (Array.isArray(entries) && entries.length > 0) {
+                onProgress?.('Restoring public directory entries...');
+                await restoreCollectionFromPayload('publicDirectory', entries);
+            }
+        }
+    },
+    years: {
+        key: 'years',
+        label: 'Academic Years & Classes',
+        icon: 'fa-calendar-alt',
+        colorClass: 'bg-cyan-100 text-cyan-700',
+        badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+        description: 'Academic calendars, year sessions, and class configurations',
+        getItemCount: (payload) => {
+            const yearsObj = payload?.settings?.academicYears || payload?.academicYears;
+            const yearsArr = Array.isArray(yearsObj) ? yearsObj : (yearsObj?.years || []);
+            return Array.isArray(yearsArr) ? yearsArr.length : (yearsObj ? 1 : 0);
+        },
+        hasData: (payload) => {
+            const yearsObj = payload?.settings?.academicYears || payload?.academicYears;
+            return Boolean(yearsObj);
+        },
+        restore: async (payload, onProgress) => {
+            const yearsObj = payload?.settings?.academicYears || payload?.academicYears;
+            if (yearsObj && typeof yearsObj === 'object') {
+                onProgress?.('Restoring academic years & class schedules...');
+                await setDoc(doc(db, `${BASE_PATH}/settings`, 'academicYears'), yearsObj, { merge: false });
+            }
+        }
+    },
+    config: {
+        key: 'config',
+        label: 'System Settings & Config',
+        icon: 'fa-sliders-h',
+        colorClass: 'bg-slate-100 text-slate-700',
+        badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
+        description: 'Institution branding, fee schedule windows, default fees & UPI details',
+        getItemCount: (payload) => {
+            const cfg = payload?.settings?.config || payload?.config;
+            return cfg && typeof cfg === 'object' ? Object.keys(cfg).length : 0;
+        },
+        hasData: (payload) => {
+            const cfg = payload?.settings?.config || payload?.config;
+            return Boolean(cfg && typeof cfg === 'object' && Object.keys(cfg).length > 0);
+        },
+        restore: async (payload, onProgress) => {
+            const cfg = payload?.settings?.config || payload?.config;
+            if (cfg && typeof cfg === 'object') {
+                onProgress?.('Restoring app settings & branding configuration...');
+                await setDoc(doc(db, `${BASE_PATH}/settings`, 'config'), cfg, { merge: true });
+            }
+        }
+    },
+    audit: {
+        key: 'audit',
+        label: 'System Audit Trail Logs',
+        icon: 'fa-clipboard-list',
+        colorClass: 'bg-rose-100 text-rose-700',
+        badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
+        description: 'Historical audit trail entries and administrative operation logs',
+        getItemCount: (payload) => {
+            const list = payload?.collections?.auditLogs || payload?.auditLogs;
+            return Array.isArray(list) ? list.length : 0;
+        },
+        hasData: (payload) => {
+            const list = payload?.collections?.auditLogs || payload?.auditLogs;
+            return Array.isArray(list) && list.length > 0;
+        },
+        restore: async (payload, onProgress) => {
+            const list = payload?.collections?.auditLogs || payload?.auditLogs || [];
+            onProgress?.('Restoring audit logs...');
+            await restoreCollectionFromPayload('auditLogs', list);
+        }
+    }
+};
+
 const summarizeBackupCounts = (payload = {}) => {
     const collections = payload.collections || {};
     return Object.entries(collections)
         .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.length : 0}`)
         .join(' • ');
 };
+
 const validateBackupPayload = (payload = {}) => {
-    if (!payload || typeof payload !== 'object') return { valid: false, reason: 'Backup payload is empty.' };
-    const collections = payload.collections || {};
-    const requiredCollections = ['students', 'staff', 'studentGroups', 'payments', 'auditLogs'];
-    for (const key of requiredCollections) {
-        if (!Array.isArray(collections[key])) {
-            return { valid: false, reason: `Missing or invalid collection: ${key}.` };
+    if (!payload || typeof payload !== 'object') return { valid: false, reason: 'Backup payload is empty or not valid JSON.' };
+    
+    // Check if at least one valid category exists
+    let detectedCategories = 0;
+    for (const [key, meta] of Object.entries(BACKUP_CATEGORIES_CONFIG)) {
+        if (meta.hasData(payload)) {
+            detectedCategories++;
         }
+    }
+    if (payload.collections && typeof payload.collections === 'object') {
+        detectedCategories++;
+    }
+
+    if (detectedCategories === 0) {
+        return { valid: false, reason: 'No recognized institutional collections or settings found in this backup file.' };
     }
     return { valid: true, reason: '' };
 };
+
 const buildBackupPayload = async () => {
-    const [studentsSnap, staffSnap, groupsSnap, paymentsSnap, auditSnap, configSnap, contentSnap, adminAuthSnap, academicYearsSnap] = await Promise.all([
+    const [
+        studentsSnap,
+        staffSnap,
+        groupsSnap,
+        paymentsSnap,
+        auditSnap,
+        examResultsSnap,
+        resultSchemasSnap,
+        publicDirSnap,
+        configSnap,
+        contentSnap,
+        adminAuthSnap,
+        academicYearsSnap,
+        resultCenterSnap
+    ] = await Promise.all([
         getDocs(collection(db, `${BASE_PATH}/students`)),
         getDocs(collection(db, `${BASE_PATH}/staff`)),
         getDocs(collection(db, `${BASE_PATH}/studentGroups`)),
         getDocs(collection(db, `${BASE_PATH}/payments`)),
         getDocs(collection(db, `${BASE_PATH}/auditLogs`)),
+        getDocs(collection(db, `${BASE_PATH}/examResults`)),
+        getDocs(collection(db, `${BASE_PATH}/resultSchemas`)),
+        getDocs(collection(db, `${BASE_PATH}/publicDirectory`)),
         getDoc(doc(db, `${BASE_PATH}/settings`, 'config')),
         getDoc(doc(db, `${BASE_PATH}/settings`, 'content')),
         getDoc(getAdminAuthRef()),
         getDoc(doc(db, `${BASE_PATH}/settings`, 'academicYears')),
+        getDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter'))
     ]);
     return {
         exportedAt: new Date().toISOString(),
         institution: BASE_PATH,
+        version: '2.0',
         releaseStage: 'Phase 3',
         collections: {
             students: studentsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
             staff: staffSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
             studentGroups: groupsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
             payments: paymentsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+            examResults: examResultsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+            resultSchemas: resultSchemasSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+            publicDirectory: publicDirSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
             auditLogs: auditSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
         },
         settings: {
             config: configSnap.exists() ? configSnap.data() : {},
             content: contentSnap.exists() ? contentSnap.data() : {},
             adminAuth: adminAuthSnap.exists() ? adminAuthSnap.data() : {},
-            academicYears: academicYearsSnap.exists() ? academicYearsSnap.data() : {}
+            academicYears: academicYearsSnap.exists() ? academicYearsSnap.data() : {},
+            resultCenter: resultCenterSnap.exists() ? resultCenterSnap.data() : {}
         }
     };
 };
+
 const restoreCollectionFromPayload = async (collectionName, records = []) => {
     const existing = await getDocs(collection(db, `${BASE_PATH}/${collectionName}`));
     const operations = [];
@@ -623,29 +882,80 @@ const restoreCollectionFromPayload = async (collectionName, records = []) => {
     });
     await runBatchedWrites(operations);
 };
+
+const executeCategorizedRestore = async (payload, targetCategories) => {
+    if (!payload || !targetCategories.length) return;
+
+    const progressContainer = document.getElementById('restore-progress-container');
+    const progressBar = document.getElementById('restore-progress-bar');
+    const progressPct = document.getElementById('restore-progress-pct');
+    const progressStatus = document.getElementById('restore-progress-status');
+    const selectiveBtn = document.getElementById('run-selective-restore-btn');
+    const fullBtn = document.getElementById('run-restore-btn');
+
+    if (progressContainer) progressContainer.classList.remove('hidden');
+    if (selectiveBtn) selectiveBtn.disabled = true;
+    if (fullBtn) fullBtn.disabled = true;
+
+    const total = targetCategories.length;
+    let completed = 0;
+
+    const updateProgress = (pct, text) => {
+        const clamped = Math.min(100, Math.max(0, Math.round(pct)));
+        if (progressBar) progressBar.style.width = `${clamped}%`;
+        if (progressPct) progressPct.textContent = `${clamped}%`;
+        if (progressStatus) progressStatus.innerHTML = `<i class="fas fa-spinner fa-spin text-blue-600 mr-1.5"></i> ${escapeHtml(text)}`;
+    };
+
+    updateProgress(5, 'Validating Super Admin session & backup snapshot...');
+
+    try {
+        for (const catKey of targetCategories) {
+            const config = BACKUP_CATEGORIES_CONFIG[catKey];
+            if (!config) continue;
+
+            const basePct = 5 + ((completed / total) * 90);
+            updateProgress(basePct, `Restoring ${config.label}...`);
+
+            await config.restore(payload, (msg) => updateProgress(basePct + 2, msg));
+            completed++;
+        }
+
+        updateProgress(100, 'All selected categories restored successfully!');
+
+        await logAuditEvent({
+            category: 'backup',
+            action: 'backup.restore_modular',
+            entityType: 'backup',
+            message: `Modular backup restore completed for ${completed} categories: ${targetCategories.join(', ')}.`,
+            metadata: {
+                categories: targetCategories,
+                exportedAt: payload.exportedAt || '',
+                institution: payload.institution || ''
+            }
+        });
+
+        setTimeout(() => {
+            if (progressContainer) progressContainer.classList.add('hidden');
+            document.getElementById('restore-preview')?.classList.add('hidden');
+            const fileInput = document.getElementById('restore-file-input');
+            if (fileInput) fileInput.value = '';
+            pendingRestorePayload = null;
+            alert(`Restore completed successfully!\n\n${completed} categories restored: ${targetCategories.map(k => BACKUP_CATEGORIES_CONFIG[k]?.label || k).join(', ')}.`);
+        }, 600);
+
+    } catch (err) {
+        console.error('Failed to restore categorized backup:', err);
+        if (progressStatus) progressStatus.innerHTML = `<span class="text-rose-600 font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> Restore error: ${escapeHtml(err?.message || 'Unknown error')}</span>`;
+        if (selectiveBtn) selectiveBtn.disabled = false;
+        if (fullBtn) fullBtn.disabled = false;
+        alert(`Restore encountered an error: ${err?.message || 'Please check the console for details.'}`);
+    }
+};
+
 const restoreFromBackupPayload = async (payload) => {
-    const collections = payload?.collections || {};
-    const settings = payload?.settings || {};
-    await Promise.all([
-        restoreCollectionFromPayload('students', collections.students || []),
-        restoreCollectionFromPayload('staff', collections.staff || []),
-        restoreCollectionFromPayload('studentGroups', collections.studentGroups || []),
-        restoreCollectionFromPayload('payments', collections.payments || []),
-        restoreCollectionFromPayload('auditLogs', collections.auditLogs || [])
-    ]);
-    await Promise.all([
-        setDoc(doc(db, `${BASE_PATH}/settings`, 'config'), settings.config || {}, { merge: false }),
-        setDoc(doc(db, `${BASE_PATH}/settings`, 'content'), settings.content || {}, { merge: false }),
-        setDoc(
-            getAdminAuthRef(),
-            buildAdminAuthPayload(
-                settings?.adminAuth?.email || normalizeEmail(currentAdminEmail),
-                Array.isArray(settings?.adminAuth?.admins) ? settings.adminAuth.admins : []
-            ),
-            { merge: false }
-        ),
-        setDoc(doc(db, `${BASE_PATH}/settings`, 'academicYears'), settings.academicYears || {}, { merge: false })
-    ]);
+    const availableCategories = Object.keys(BACKUP_CATEGORIES_CONFIG).filter(k => BACKUP_CATEGORIES_CONFIG[k].hasData(payload));
+    await executeCategorizedRestore(payload, availableCategories);
 };
 const logAuditEvent = async ({ category = 'system', action, entityType = '', entityId = '', message = '', metadata = {} }) => {
     try {
@@ -10270,7 +10580,95 @@ document.getElementById('force-logout-btn').addEventListener('click', async () =
     await setDoc(doc(db, `${BASE_PATH}/settings`, 'sessionControl'), payload, { merge: true });
     await logAuditEvent({ category: 'security', action: 'session.force_logout', entityType: 'settings', entityId: 'sessionControl', message: 'Global force logout triggered for staff/admin sessions.' });
 });
-document.getElementById('backup-export-btn').addEventListener('click', async () => {
+const renderModularRestorePreview = (payload) => {
+    const previewEl = document.getElementById('restore-preview');
+    const metaEl = document.getElementById('restore-preview-meta');
+    const categoryListEl = document.getElementById('restore-category-list');
+    const selectAllCb = document.getElementById('restore-select-all');
+    if (!previewEl || !categoryListEl) return;
+
+    previewEl.classList.remove('hidden');
+
+    const formattedDate = payload.exportedAt ? formatDateTime(payload.exportedAt) : 'Unknown date';
+    const sourceInst = payload.institution || BASE_PATH;
+    if (metaEl) {
+        metaEl.textContent = `Snapshot Date: ${formattedDate} • Source: ${sourceInst}`;
+    }
+
+    let html = '';
+    let availableCategoriesCount = 0;
+
+    Object.values(BACKUP_CATEGORIES_CONFIG).forEach((cat) => {
+        const hasData = cat.hasData(payload);
+        const count = cat.getItemCount(payload);
+        const isPresent = hasData || count > 0;
+        if (isPresent) availableCategoriesCount++;
+
+        const countBadge = isPresent
+            ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${cat.badgeClass}">${count > 0 ? `${count} records` : 'Available'}</span>`
+            : `<span class="text-[10px] text-slate-400 italic">Not in snapshot</span>`;
+
+        html += `
+            <label class="flex items-center justify-between p-2.5 rounded-lg border ${isPresent ? 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/20 cursor-pointer' : 'border-slate-100 bg-slate-50/50 opacity-60 cursor-not-allowed'} select-none transition group">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <input type="checkbox" class="restore-category-cb w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer shrink-0" 
+                        data-category="${cat.key}" ${isPresent ? 'checked' : 'disabled'}>
+                    <div class="w-6 h-6 rounded-md ${cat.colorClass} flex items-center justify-center text-[11px] shrink-0">
+                        <i class="fas ${cat.icon}"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-900 truncate">${escapeHtml(cat.label)}</div>
+                        <div class="text-[10px] text-slate-500 truncate">${escapeHtml(cat.description)}</div>
+                    </div>
+                </div>
+                <div class="shrink-0 ml-2">
+                    ${countBadge}
+                </div>
+            </label>
+        `;
+    });
+
+    categoryListEl.innerHTML = html;
+
+    if (selectAllCb) {
+        selectAllCb.checked = availableCategoriesCount > 0;
+        selectAllCb.indeterminate = false;
+    }
+    updateRestoreSelectionUI();
+};
+
+const getSelectedRestoreCategories = () => {
+    const checkboxes = document.querySelectorAll('.restore-category-cb:checked:not(:disabled)');
+    return Array.from(checkboxes).map((cb) => cb.dataset.category).filter(Boolean);
+};
+
+const updateRestoreSelectionUI = () => {
+    const allEnabled = document.querySelectorAll('.restore-category-cb:not(:disabled)');
+    const allChecked = document.querySelectorAll('.restore-category-cb:checked:not(:disabled)');
+    const selectAllCb = document.getElementById('restore-select-all');
+    const countBadge = document.getElementById('restore-selected-count-badge');
+    const selectiveBtn = document.getElementById('run-selective-restore-btn');
+    const fullBtn = document.getElementById('run-restore-btn');
+
+    const total = allEnabled.length;
+    const selected = allChecked.length;
+
+    if (selectAllCb) {
+        selectAllCb.checked = total > 0 && selected === total;
+        selectAllCb.indeterminate = selected > 0 && selected < total;
+    }
+    if (countBadge) {
+        countBadge.textContent = `${selected} of ${total} selected`;
+    }
+    if (selectiveBtn) {
+        selectiveBtn.disabled = selected === 0;
+    }
+    if (fullBtn) {
+        fullBtn.disabled = total === 0;
+    }
+};
+
+document.getElementById('backup-export-btn')?.addEventListener('click', async () => {
     if(!requirePermission('backup.export')) return;
     const payload = await buildBackupPayload();
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -10282,54 +10680,77 @@ document.getElementById('backup-export-btn').addEventListener('click', async () 
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    await logAuditEvent({ category: 'backup', action: 'backup.export', entityType: 'backup', message: 'JSON backup exported from admin panel.' });
+    await logAuditEvent({ category: 'backup', action: 'backup.export', entityType: 'backup', message: 'Comprehensive JSON backup exported from admin panel.' });
 });
-document.getElementById('restore-file-input').addEventListener('change', async (e) => {
+
+document.getElementById('restore-file-input')?.addEventListener('change', async (e) => {
     if(!requirePermission('backup.restore')) return;
     const file = e.target.files?.[0];
-    const runRestoreBtn = document.getElementById('run-restore-btn');
     if (!file) return;
-    const textPayload = await file.text();
     try {
+        const textPayload = await file.text();
         const parsedPayload = JSON.parse(textPayload);
         const validation = validateBackupPayload(parsedPayload);
         if (!validation.valid) {
             pendingRestorePayload = null;
-            document.getElementById('restore-preview').classList.add('hidden');
-            if (runRestoreBtn) runRestoreBtn.disabled = true;
+            document.getElementById('restore-preview')?.classList.add('hidden');
             return alert(`Invalid backup file: ${validation.reason}`);
         }
 
         pendingRestorePayload = parsedPayload;
-        document.getElementById('restore-preview').classList.remove('hidden');
-        document.getElementById('restore-preview-meta').textContent = `Backup date: ${formatDateTime(pendingRestorePayload.exportedAt)} • Source: ${pendingRestorePayload.institution || BASE_PATH}`;
-        document.getElementById('restore-preview-counts').textContent = summarizeBackupCounts(pendingRestorePayload);
-        if (runRestoreBtn) runRestoreBtn.disabled = false;
+        renderModularRestorePreview(pendingRestorePayload);
     } catch (error) {
-        console.error(error);
+        console.error('Backup JSON parse error:', error);
         pendingRestorePayload = null;
-        document.getElementById('restore-preview').classList.add('hidden');
-        if (runRestoreBtn) runRestoreBtn.disabled = true;
-        alert('Invalid backup file. Please choose a valid JSON export.');
+        document.getElementById('restore-preview')?.classList.add('hidden');
+        alert('Failed to parse file. Please select a valid JSON backup export.');
     }
 });
-const runRestoreBtn = document.getElementById('run-restore-btn');
-if (runRestoreBtn) runRestoreBtn.disabled = true;
 
-document.getElementById('run-restore-btn').addEventListener('click', async () => {
-    if(!requirePermission('backup.restore')) return;
-    if (!pendingRestorePayload) return alert('Select a backup file first.');
-    const validation = validateBackupPayload(pendingRestorePayload);
-    if (!validation.valid) return alert(`Selected backup is invalid: ${validation.reason}`);
-    if(!confirm('This will replace current data with the selected backup snapshot. Continue?')) return;
-    await restoreFromBackupPayload(pendingRestorePayload);
-    await logAuditEvent({ category: 'backup', action: 'backup.restore', entityType: 'backup', message: 'Backup restore completed from selected JSON payload.', metadata: { exportedAt: pendingRestorePayload.exportedAt || '' } });
+document.getElementById('restore-select-all')?.addEventListener('change', (e) => {
+    const isChecked = e.target.checked;
+    document.querySelectorAll('.restore-category-cb:not(:disabled)').forEach((cb) => {
+        cb.checked = isChecked;
+    });
+    updateRestoreSelectionUI();
+});
+
+document.addEventListener('change', (e) => {
+    if (e.target && e.target.classList.contains('restore-category-cb')) {
+        updateRestoreSelectionUI();
+    }
+});
+
+document.getElementById('restore-cancel-btn')?.addEventListener('click', () => {
     pendingRestorePayload = null;
-    document.getElementById('restore-preview').classList.add('hidden');
-    document.getElementById('restore-file-input').value = '';
-    const runRestoreBtn = document.getElementById('run-restore-btn');
-    if (runRestoreBtn) runRestoreBtn.disabled = true;
-    alert('Backup restore completed.');
+    document.getElementById('restore-preview')?.classList.add('hidden');
+    const fileInput = document.getElementById('restore-file-input');
+    if (fileInput) fileInput.value = '';
+});
+
+document.getElementById('run-selective-restore-btn')?.addEventListener('click', async () => {
+    if (!requirePermission('backup.restore')) return;
+    if (!pendingRestorePayload) return alert('Select a backup file first.');
+    const selected = getSelectedRestoreCategories();
+    if (!selected.length) return alert('Please select at least one category to restore.');
+
+    const selectedLabels = selected.map(k => BACKUP_CATEGORIES_CONFIG[k]?.label || k).join('\n• ');
+    const confirmed = confirm(`Are you sure you want to restore the selected categories?\n\n• ${selectedLabels}\n\nDocuments in these categories will be replaced with the snapshot data. Unselected categories will NOT be affected.`);
+    if (!confirmed) return;
+
+    await executeCategorizedRestore(pendingRestorePayload, selected);
+});
+
+document.getElementById('run-restore-btn')?.addEventListener('click', async () => {
+    if (!requirePermission('backup.restore')) return;
+    if (!pendingRestorePayload) return alert('Select a backup file first.');
+    const availableCategories = Object.keys(BACKUP_CATEGORIES_CONFIG).filter(k => BACKUP_CATEGORIES_CONFIG[k].hasData(pendingRestorePayload));
+    if (!availableCategories.length) return alert('No valid categories found in this backup file.');
+
+    const confirmed = confirm(`This will perform a FULL restore of all ${availableCategories.length} categories found in the backup snapshot.\n\nExisting records in these categories will be replaced. Continue?`);
+    if (!confirmed) return;
+
+    await executeCategorizedRestore(pendingRestorePayload, availableCategories);
 });
 document.getElementById('audit-filter-action')?.addEventListener('change', renderAuditLogList);
 document.getElementById('audit-search-input')?.addEventListener('input', renderAuditLogList);
