@@ -1840,7 +1840,7 @@ const populateClassDropdowns = () => {
     if (userExplicitClass) {
         document.getElementById('entry-class').value = userExplicitClass;
     }
-    document.getElementById('stu-info-class').innerHTML = `<option value="">-- Select --</option>` + allClassOpts;
+    document.getElementById('stu-info-class').innerHTML = `<option value="">-- Select Class --</option>` + allClassOpts;
     
     // Also populate bulk upload class dropdown
     const bulkClassDropdown = document.getElementById('bulk-class');
@@ -4887,41 +4887,191 @@ window.renderCollectorWiseMonthlyPage = renderCollectorWiseMonthlyPage;
 
 // --- STUDENTS INFO RENDER ---
 const renderStudentInfoList = () => {
-    const fCls = document.getElementById('stu-info-class').value;
-    const fGen = document.getElementById('stu-info-gender').value;
-    const sTerm = document.getElementById('stu-info-search').value.toLowerCase();
-    const cont = document.getElementById('stu-info-list');
+    const classSelect = document.getElementById('stu-info-class');
+    const sortSelect = document.getElementById('stu-info-sort');
+    const genderSelect = document.getElementById('stu-info-gender');
+    const searchInput = document.getElementById('stu-info-search');
+
+    const fCls = classSelect ? classSelect.value : '';
+    const fSort = sortSelect ? sortSelect.value : 'boys-first';
+    const fGen = genderSelect ? genderSelect.value : 'all';
+    const sTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+    const cont = document.getElementById('stu-info-container');
     const emptyState = document.getElementById('stu-info-empty');
+    const statsBar = document.getElementById('stu-info-stats-bar');
+    const tbody = document.getElementById('stu-info-table-body');
 
-    if (!fCls && !sTerm) {
-        emptyState.classList.remove('hidden'); cont.classList.add('hidden'); return;
+    // Strict single-class view requirement: A specific class must be selected
+    if (!fCls) {
+        if (emptyState) emptyState.classList.remove('hidden');
+        if (cont) cont.classList.add('hidden');
+        return;
     }
-    emptyState.classList.add('hidden'); cont.classList.remove('hidden');
+    if (emptyState) emptyState.classList.add('hidden');
+    if (cont) cont.classList.remove('hidden');
 
-    const fil = students.filter(s => {
-        let match = true;
-        if(fCls) match = match && s.class === fCls;
-        if(fGen !== 'all') match = match && s.gender === fGen;
-        if(sTerm) match = match && (s.name.toLowerCase().includes(sTerm) || (s.adm && s.adm.toLowerCase().includes(sTerm)));
-        return match;
+    // Base students in selected class
+    const classStudents = students.filter((s) => s.class === fCls);
+    const totalInClass = classStudents.length;
+    const totalBoysInClass = classStudents.filter((s) => {
+        const g = String(s.gender || '').toLowerCase();
+        return g === 'male' || g === 'boy';
+    }).length;
+    const totalGirlsInClass = classStudents.filter((s) => {
+        const g = String(s.gender || '').toLowerCase();
+        return g === 'female' || g === 'girl';
+    }).length;
+
+    // Apply gender and search filter
+    let fil = classStudents.filter((s) => {
+        if (fGen !== 'all') {
+            const g = String(s.gender || '').toLowerCase();
+            if (fGen === 'Male' && g !== 'male' && g !== 'boy') return false;
+            if (fGen === 'Female' && g !== 'female' && g !== 'girl') return false;
+        }
+        if (sTerm) {
+            const prof = (s.profile && typeof s.profile === 'object') ? s.profile : {};
+            const matchName = String(s.name || '').toLowerCase().includes(sTerm);
+            const matchAdm = String(s.adm || prof.admNo || '').toLowerCase().includes(sTerm);
+            const matchGuardian = String(s.guardian || s.father || prof.father || s.mother || prof.mother || '').toLowerCase().includes(sTerm);
+            const matchPhone = String(s.mobile || s.phone || prof.mobile || prof.fatherMobile || prof.motherMobile || '').toLowerCase().includes(sTerm);
+            if (!matchName && !matchAdm && !matchGuardian && !matchPhone) return false;
+        }
+        return true;
     });
 
-    if(fil.length === 0) { cont.innerHTML = '<p class="text-gray-500 p-4 text-center font-medium">No students found.</p>'; return; }
-    fil.sort((a, b) => a.name.localeCompare(b.name));
-
-    cont.innerHTML = fil.map(s => `
-        <div class="bg-white border border-gray-200 p-4 rounded-xl shadow-sm flex justify-between items-center cursor-pointer hover:border-blue-400 hover:shadow-md transition" onclick="window.openStudentProfile('${s.id}')">
-            <div>
-                <div class="font-bold text-gray-900 text-lg">${s.name}</div>
-                <div class="text-sm text-gray-500">${s.class} (${s.gender}) | Adm: ${s.adm||'-'}</div>
+    // Render Stats Bar
+    if (statsBar) {
+        statsBar.innerHTML = `
+            <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span>
+                <span class="text-sm font-black text-gray-800">Class: ${escapeHtml(fCls)}</span>
+                ${(sTerm || fGen !== 'all') ? `<span class="text-xs text-gray-500 font-medium">(Showing ${fil.length} of ${totalInClass})</span>` : ''}
             </div>
-            <i class="fas fa-chevron-right text-gray-300"></i>
-        </div>
-    `).join('');
+            <div class="flex flex-wrap items-center gap-2 text-xs font-bold">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200">
+                    <i class="fas fa-users text-slate-500 text-[10px]"></i> Total: <b>${totalInClass}</b>
+                </span>
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+                    <i class="fas fa-mars text-blue-500 text-[10px]"></i> Boys: <b>${totalBoysInClass}</b>
+                </span>
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-pink-50 text-pink-700 border border-pink-200">
+                    <i class="fas fa-venus text-pink-500 text-[10px]"></i> Girls: <b>${totalGirlsInClass}</b>
+                </span>
+            </div>
+        `;
+    }
+
+    // Sorting Helper
+    const compareAdmNo = (a, b, asc = true) => {
+        const aVal = String(a.adm || a.profile?.admNo || '').trim();
+        const bVal = String(b.adm || b.profile?.admNo || '').trim();
+        const aNum = Number(aVal);
+        const bNum = Number(bVal);
+        const aIsNum = !isNaN(aNum) && aVal !== '';
+        const bIsNum = !isNaN(bNum) && bVal !== '';
+        if (aIsNum && bIsNum) {
+            return asc ? aNum - bNum : bNum - aNum;
+        }
+        return asc
+            ? aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' })
+            : bVal.localeCompare(aVal, undefined, { numeric: true, sensitivity: 'base' });
+    };
+
+    fil.sort((a, b) => {
+        if (fSort === 'boys-first') {
+            const genA = String(a.gender || '').toLowerCase();
+            const genB = String(b.gender || '').toLowerCase();
+            const rankA = (genA === 'male' || genA === 'boy') ? 1 : ((genA === 'female' || genA === 'girl') ? 2 : 3);
+            const rankB = (genB === 'male' || genB === 'boy') ? 1 : ((genB === 'female' || genB === 'girl') ? 2 : 3);
+            if (rankA !== rankB) return rankA - rankB;
+            return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+        }
+        if (fSort === 'girls-first') {
+            const genA = String(a.gender || '').toLowerCase();
+            const genB = String(b.gender || '').toLowerCase();
+            const rankA = (genA === 'female' || genA === 'girl') ? 1 : ((genA === 'male' || genA === 'boy') ? 2 : 3);
+            const rankB = (genB === 'female' || genB === 'girl') ? 1 : ((genB === 'male' || genB === 'boy') ? 2 : 3);
+            if (rankA !== rankB) return rankA - rankB;
+            return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+        }
+        if (fSort === 'name-asc') {
+            return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+        }
+        if (fSort === 'name-desc') {
+            return String(b.name || '').localeCompare(String(a.name || ''), undefined, { sensitivity: 'base' });
+        }
+        if (fSort === 'adm-asc') {
+            return compareAdmNo(a, b, true);
+        }
+        if (fSort === 'adm-desc') {
+            return compareAdmNo(a, b, false);
+        }
+        return 0;
+    });
+
+    if (!tbody) return;
+
+    if (fil.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center py-10 px-4 text-gray-500 font-medium">
+                    <i class="fas fa-search text-gray-300 text-2xl mb-2 block"></i>
+                    No students matched the criteria in ${escapeHtml(fCls)}.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = fil.map((s, idx) => {
+        const prof = (s.profile && typeof s.profile === 'object') ? s.profile : {};
+        const admNo = s.adm || prof.admNo || '-';
+        const guardian = s.guardian || s.father || prof.father || s.mother || prof.mother || '-';
+        const phone = s.mobile || s.phone || prof.mobile || prof.fatherMobile || prof.motherMobile || '';
+        const genderLower = String(s.gender || '').toLowerCase();
+        const isMale = genderLower === 'male' || genderLower === 'boy';
+        const isFemale = genderLower === 'female' || genderLower === 'girl';
+        const genderBadge = isMale
+            ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200"><i class="fas fa-mars text-[9px]"></i> Male</span>`
+            : isFemale
+                ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-pink-50 text-pink-700 border border-pink-200"><i class="fas fa-venus text-[9px]"></i> Female</span>`
+                : `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200">${escapeHtml(s.gender || '-')}</span>`;
+
+        return `
+            <tr class="hover:bg-blue-50/40 transition">
+                <td class="py-3 px-3 text-center text-xs font-mono font-bold text-gray-400">${idx + 1}</td>
+                <td class="py-3 px-3 whitespace-nowrap">
+                    <span class="font-mono text-xs font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">${escapeHtml(admNo)}</span>
+                </td>
+                <td class="py-3 px-4 font-bold text-gray-900">
+                    <div class="hover:text-blue-600 cursor-pointer inline-flex items-center gap-1.5" onclick="window.openStudentProfile('${escapeHtml(s.id)}')">
+                        <span>${escapeHtml(s.name || '-')}</span>
+                        ${String(s.status || '').toLowerCase() === 'discontinued' ? `<span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-rose-100 text-rose-700 border border-rose-200">Discontinued</span>` : ''}
+                    </div>
+                </td>
+                <td class="py-3 px-3 whitespace-nowrap font-medium text-gray-600">${escapeHtml(s.class || '-')}</td>
+                <td class="py-3 px-3 text-center whitespace-nowrap">${genderBadge}</td>
+                <td class="py-3 px-3 whitespace-nowrap text-xs text-gray-600 font-medium">${escapeHtml(guardian)}</td>
+                <td class="py-3 px-3 whitespace-nowrap text-xs font-mono">
+                    ${phone ? `<a href="tel:${escapeHtml(phone)}" class="text-blue-600 hover:text-blue-800 hover:underline font-bold inline-flex items-center gap-1"><i class="fas fa-phone text-[10px] text-emerald-600"></i> ${escapeHtml(phone)}</a>` : '<span class="text-gray-400">-</span>'}
+                </td>
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                    <button type="button" onclick="window.openStudentProfile('${escapeHtml(s.id)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-xs font-bold border border-blue-200 transition shadow-2xs cursor-pointer" title="View Full Profile">
+                        <i class="fas fa-id-card text-[11px]"></i>
+                        <span>Profile</span>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
 };
-document.getElementById('stu-info-class').addEventListener('change', renderStudentInfoList);
-document.getElementById('stu-info-gender').addEventListener('change', renderStudentInfoList);
-document.getElementById('stu-info-search').addEventListener('input', renderStudentInfoList);
+
+document.getElementById('stu-info-class')?.addEventListener('change', renderStudentInfoList);
+document.getElementById('stu-info-sort')?.addEventListener('change', renderStudentInfoList);
+document.getElementById('stu-info-gender')?.addEventListener('change', renderStudentInfoList);
+document.getElementById('stu-info-search')?.addEventListener('input', renderStudentInfoList);
 
 
 // --- INIT LISTENER ---

@@ -632,16 +632,91 @@
 
             <!-- 6. Student Info Page -->
             <section id="students-page" class="page-content hidden">
-                <div class="card p-4 shadow-sm mb-5">
-                    <h2 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Student Information</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div><label class="block text-xs font-bold text-gray-500 uppercase">Class</label><select id="stu-info-class" class="w-full p-2.5 mt-1 rounded-lg"><option value="">-- Select --</option></select></div>
-                        <div><label class="block text-xs font-bold text-gray-500 uppercase">Gender</label><select id="stu-info-gender" class="w-full p-2.5 mt-1 rounded-lg"><option value="all">All</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
-                        <div><label class="block text-xs font-bold text-gray-500 uppercase">Search</label><div class="relative mt-1"><input type="text" id="stu-info-search" placeholder="Name or Adm No..." class="w-full p-2.5 pl-8 rounded-lg"><i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i></div></div>
+                <div class="card p-4 sm:p-5 shadow-sm mb-5">
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-b pb-3 mb-4">
+                        <div>
+                            <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                <i class="fas fa-user-graduate text-blue-600"></i>
+                                <span>Student Directory</span>
+                            </h2>
+                            <p class="text-xs text-gray-500 font-medium mt-0.5">Select a class to view its complete student list and profiles.</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Class <span class="text-rose-500">*</span></label>
+                            <select id="stu-info-class" class="w-full p-2.5 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                                <option value="">-- Select Class --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Sort / Order</label>
+                            <select id="stu-info-sort" class="w-full p-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                                <option value="boys-first">Boys First, then Girls</option>
+                                <option value="girls-first">Girls First, then Boys</option>
+                                <option value="name-asc">Name (A - Z)</option>
+                                <option value="name-desc">Name (Z - A)</option>
+                                <option value="adm-asc">Admission No (Ascending)</option>
+                                <option value="adm-desc">Admission No (Descending)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Gender</label>
+                            <select id="stu-info-gender" class="w-full p-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                                <option value="all">All Genders</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Search</label>
+                            <div class="relative">
+                                <input type="text" id="stu-info-search" placeholder="Name, Adm, Guardian..." class="w-full p-2.5 pl-8 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div id="stu-info-empty" class="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-500">Select a Class to view students.</div>
-                <div id="stu-info-list" class="space-y-2 hidden"></div>
+
+                <!-- Empty State: When no class is selected -->
+                <div id="stu-info-empty" class="text-center py-12 px-4 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 text-gray-500">
+                    <div class="w-14 h-14 mx-auto mb-3 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center text-2xl">
+                        <i class="fas fa-chalkboard-user"></i>
+                    </div>
+                    <p class="font-bold text-gray-800 text-base">Select a Class to View Students</p>
+                    <p class="text-xs text-gray-500 mt-1 max-w-sm mx-auto">Please choose a specific class from the dropdown above to display the student roster and records.</p>
+                </div>
+
+                <!-- Student Information Table Container -->
+                <div id="stu-info-container" class="space-y-4 hidden">
+                    <!-- Class Summary Bar -->
+                    <div id="stu-info-stats-bar" class="flex flex-wrap items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl p-3 sm:px-4 shadow-2xs">
+                        <!-- Populated dynamically -->
+                    </div>
+
+                    <!-- Students Table Card -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left">
+                                <thead class="bg-slate-50 text-slate-700 border-b border-slate-200 text-xs font-bold uppercase tracking-wider">
+                                    <tr>
+                                        <th class="py-3 px-3 w-12 text-center">#</th>
+                                        <th class="py-3 px-3 whitespace-nowrap">Adm No</th>
+                                        <th class="py-3 px-4">Student Name</th>
+                                        <th class="py-3 px-3 whitespace-nowrap">Class</th>
+                                        <th class="py-3 px-3 text-center whitespace-nowrap">Gender</th>
+                                        <th class="py-3 px-3 whitespace-nowrap">Guardian / Parent</th>
+                                        <th class="py-3 px-3 whitespace-nowrap">Phone</th>
+                                        <th class="py-3 px-3 text-center w-28 whitespace-nowrap">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stu-info-table-body" class="divide-y divide-gray-100 bg-white">
+                                    <!-- Rows populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </section>
 
         </div>
