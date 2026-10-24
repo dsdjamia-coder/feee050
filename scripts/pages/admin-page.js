@@ -816,7 +816,14 @@ const validateBackupPayload = (payload = {}) => {
     return { valid: true, reason: '' };
 };
 
-const buildBackupPayload = async () => {
+const buildBackupPayload = async (targetCategories = null) => {
+    const allCategoryKeys = Object.keys(BACKUP_CATEGORIES_CONFIG);
+    const selected = Array.isArray(targetCategories) && targetCategories.length
+        ? targetCategories
+        : allCategoryKeys;
+
+    const wants = (key) => selected.includes(key);
+
     const [
         studentsSnap,
         staffSnap,
@@ -832,42 +839,48 @@ const buildBackupPayload = async () => {
         academicYearsSnap,
         resultCenterSnap
     ] = await Promise.all([
-        getDocs(collection(db, `${BASE_PATH}/students`)),
-        getDocs(collection(db, `${BASE_PATH}/staff`)),
-        getDocs(collection(db, `${BASE_PATH}/studentGroups`)),
-        getDocs(collection(db, `${BASE_PATH}/payments`)),
-        getDocs(collection(db, `${BASE_PATH}/auditLogs`)),
-        getDocs(collection(db, `${BASE_PATH}/examResults`)),
-        getDocs(collection(db, `${BASE_PATH}/resultSchemas`)),
-        getDocs(collection(db, `${BASE_PATH}/publicDirectory`)),
-        getDoc(doc(db, `${BASE_PATH}/settings`, 'config')),
-        getDoc(doc(db, `${BASE_PATH}/settings`, 'content')),
-        getDoc(getAdminAuthRef()),
-        getDoc(doc(db, `${BASE_PATH}/settings`, 'academicYears')),
-        getDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter'))
+        wants('students') ? getDocs(collection(db, `${BASE_PATH}/students`)) : Promise.resolve({ docs: [] }),
+        wants('staff') ? getDocs(collection(db, `${BASE_PATH}/staff`)) : Promise.resolve({ docs: [] }),
+        wants('groups') ? getDocs(collection(db, `${BASE_PATH}/studentGroups`)) : Promise.resolve({ docs: [] }),
+        wants('payments') ? getDocs(collection(db, `${BASE_PATH}/payments`)) : Promise.resolve({ docs: [] }),
+        wants('audit') ? getDocs(collection(db, `${BASE_PATH}/auditLogs`)) : Promise.resolve({ docs: [] }),
+        wants('results') ? getDocs(collection(db, `${BASE_PATH}/examResults`)) : Promise.resolve({ docs: [] }),
+        wants('results') ? getDocs(collection(db, `${BASE_PATH}/resultSchemas`)) : Promise.resolve({ docs: [] }),
+        wants('website') ? getDocs(collection(db, `${BASE_PATH}/publicDirectory`)) : Promise.resolve({ docs: [] }),
+        wants('config') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'config')) : Promise.resolve({ exists: () => false }),
+        wants('website') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'content')) : Promise.resolve({ exists: () => false }),
+        wants('staff') ? getDoc(getAdminAuthRef()) : Promise.resolve({ exists: () => false }),
+        wants('years') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'academicYears')) : Promise.resolve({ exists: () => false }),
+        wants('results') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter')) : Promise.resolve({ exists: () => false })
     ]);
+
+    const collections = {};
+    if (wants('students')) collections.students = studentsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (wants('staff')) collections.staff = staffSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (wants('groups')) collections.studentGroups = groupsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (wants('payments')) collections.payments = paymentsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (wants('results')) {
+        collections.examResults = examResultsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        collections.resultSchemas = resultSchemasSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    }
+    if (wants('website')) collections.publicDirectory = publicDirSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (wants('audit')) collections.auditLogs = auditSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    const settings = {};
+    if (wants('config') && configSnap.exists()) settings.config = configSnap.data();
+    if (wants('website') && contentSnap.exists()) settings.content = contentSnap.data();
+    if (wants('staff') && adminAuthSnap.exists()) settings.adminAuth = adminAuthSnap.data();
+    if (wants('years') && academicYearsSnap.exists()) settings.academicYears = academicYearsSnap.data();
+    if (wants('results') && resultCenterSnap.exists()) settings.resultCenter = resultCenterSnap.data();
+
     return {
         exportedAt: new Date().toISOString(),
         institution: BASE_PATH,
         version: '2.0',
         releaseStage: 'Phase 3',
-        collections: {
-            students: studentsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-            staff: staffSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-            studentGroups: groupsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-            payments: paymentsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-            examResults: examResultsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-            resultSchemas: resultSchemasSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-            publicDirectory: publicDirSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-            auditLogs: auditSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        },
-        settings: {
-            config: configSnap.exists() ? configSnap.data() : {},
-            content: contentSnap.exists() ? contentSnap.data() : {},
-            adminAuth: adminAuthSnap.exists() ? adminAuthSnap.data() : {},
-            academicYears: academicYearsSnap.exists() ? academicYearsSnap.data() : {},
-            resultCenter: resultCenterSnap.exists() ? resultCenterSnap.data() : {}
-        }
+        selectedCategories: selected,
+        collections,
+        settings
     };
 };
 
@@ -1625,9 +1638,13 @@ const activateAdminPage = (targetId, options = {}) => {
     if(targetId === 'fee-settings') renderFeeItemsManagement();
     if(targetId === 'fee-concessions') { populateClassDropdowns(); renderConcessionsList(); }
     if(targetId === 'web-directory') { renderDirectoryCategories(); }
-    if(targetId === 'web-directory-entries') { renderDirectoryEntryForm(); renderDirectoryEntries(); }
-    if(targetId === 'security-settings') { renderAdminRoleList(); renderSessionMonitor(); renderAuditLogList(); }
-    syncDrawerForResultManagement(targetId);
+    if(targetId === 'security-settings') {
+        renderAdminRoleList();
+        renderSessionMonitor();
+        renderAuditLogList();
+        if (typeof renderBackupCategoryCounts === 'function') renderBackupCategoryCounts();
+        if (typeof updateBackupSelectionUI === 'function') updateBackupSelectionUI();
+    }
 
     if(pushHistory) {
         const nextHash = `#${targetId}`;
@@ -10732,50 +10749,109 @@ const renderModularRestorePreview = (payload) => {
     updateRestoreSelectionUI();
 };
 
-const getSelectedRestoreCategories = () => {
-    const checkboxes = document.querySelectorAll('.restore-category-cb:checked:not(:disabled)');
+const renderBackupCategoryCounts = () => {
+    const setBadge = (id, count) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = count !== undefined ? `${count} records` : '--';
+    };
+
+    setBadge('count-backup-students', rawStudents?.length ?? students?.length ?? 0);
+    setBadge('count-backup-payments', allPayments?.length ?? 0);
+    setBadge('count-backup-results', (examResultsCache?.length || 0) + (resultSchemas?.length || 0));
+    setBadge('count-backup-staff', allStaff?.length ?? 0);
+    setBadge('count-backup-groups', studentGroups?.length ?? 0);
+
+    const webCount = (webContent?.notices?.length || 0) + (webContent?.gallery?.length || 0) + (publicDirectoryEntries?.length || 0);
+    setBadge('count-backup-website', webCount);
+
+    setBadge('count-backup-years', academicYears?.length ?? 0);
+
+    const configEl = document.getElementById('count-backup-config');
+    if (configEl) configEl.textContent = `${feeItems?.length || 0} fee items`;
+
+    setBadge('count-backup-audit', auditLogs?.length ?? 0);
+};
+
+const getSelectedBackupCategories = () => {
+    const checkboxes = document.querySelectorAll('.backup-category-cb:checked');
     return Array.from(checkboxes).map((cb) => cb.dataset.category).filter(Boolean);
 };
 
-const updateRestoreSelectionUI = () => {
-    const allEnabled = document.querySelectorAll('.restore-category-cb:not(:disabled)');
-    const allChecked = document.querySelectorAll('.restore-category-cb:checked:not(:disabled)');
-    const selectAllCb = document.getElementById('restore-select-all');
-    const countBadge = document.getElementById('restore-selected-count-badge');
-    const selectiveBtn = document.getElementById('run-selective-restore-btn');
-    const fullBtn = document.getElementById('run-restore-btn');
+const updateBackupSelectionUI = () => {
+    const allCbs = document.querySelectorAll('.backup-category-cb');
+    const checkedCbs = document.querySelectorAll('.backup-category-cb:checked');
+    const masterCb = document.getElementById('backup-select-all');
+    const countBadge = document.getElementById('backup-selected-count-badge');
+    const exportBtn = document.getElementById('backup-export-btn');
 
-    const total = allEnabled.length;
-    const selected = allChecked.length;
+    const total = allCbs.length;
+    const selected = checkedCbs.length;
 
-    if (selectAllCb) {
-        selectAllCb.checked = total > 0 && selected === total;
-        selectAllCb.indeterminate = selected > 0 && selected < total;
+    if (masterCb) {
+        masterCb.checked = total > 0 && selected === total;
+        masterCb.indeterminate = selected > 0 && selected < total;
     }
     if (countBadge) {
-        countBadge.textContent = `${selected} of ${total} selected`;
+        countBadge.textContent = `${selected} of ${total} categories selected`;
     }
-    if (selectiveBtn) {
-        selectiveBtn.disabled = selected === 0;
-    }
-    if (fullBtn) {
-        fullBtn.disabled = total === 0;
+    if (exportBtn) {
+        exportBtn.disabled = selected === 0;
     }
 };
 
+document.getElementById('backup-select-all')?.addEventListener('change', (e) => {
+    const isChecked = e.target.checked;
+    document.querySelectorAll('.backup-category-cb').forEach((cb) => {
+        cb.checked = isChecked;
+    });
+    updateBackupSelectionUI();
+});
+
+document.addEventListener('change', (e) => {
+    if (e.target && e.target.classList.contains('backup-category-cb')) {
+        updateBackupSelectionUI();
+    }
+});
+
 document.getElementById('backup-export-btn')?.addEventListener('click', async () => {
     if(!requirePermission('backup.export')) return;
-    const payload = await buildBackupPayload();
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `fee-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    await logAuditEvent({ category: 'backup', action: 'backup.export', entityType: 'backup', message: 'Comprehensive JSON backup exported from admin panel.' });
+    const selected = getSelectedBackupCategories();
+    if (!selected.length) return alert('Please select at least one category to export.');
+
+    const exportBtn = document.getElementById('backup-export-btn');
+    const origHtml = exportBtn ? exportBtn.innerHTML : '';
+    if (exportBtn) {
+        exportBtn.disabled = true;
+        exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs mr-1"></i> <span>Exporting...</span>';
+    }
+
+    try {
+        const payload = await buildBackupPayload(selected);
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const isFull = selected.length === Object.keys(BACKUP_CATEGORIES_CONFIG).length;
+        link.download = `backup-${isFull ? 'full' : 'custom'}-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        await logAuditEvent({ 
+            category: 'backup', 
+            action: 'backup.export', 
+            entityType: 'backup', 
+            message: `JSON backup exported (${selected.length} categories: ${selected.join(', ')}).` 
+        });
+    } catch (err) {
+        console.error('Export error:', err);
+        alert('Failed to export backup: ' + (err?.message || 'Unknown error'));
+    } finally {
+        if (exportBtn) {
+            exportBtn.disabled = false;
+            exportBtn.innerHTML = origHtml;
+        }
+    }
 });
 
 document.getElementById('restore-file-input')?.addEventListener('change', async (e) => {
@@ -10793,7 +10869,46 @@ document.getElementById('restore-file-input')?.addEventListener('change', async 
         }
 
         pendingRestorePayload = parsedPayload;
-        renderModularRestorePreview(pendingRestorePayload);
+
+        const previewEl = document.getElementById('restore-preview');
+        const metaEl = document.getElementById('restore-preview-meta');
+        const listEl = document.getElementById('restore-category-list');
+        if (previewEl) previewEl.classList.remove('hidden');
+
+        const formattedDate = parsedPayload.exportedAt ? formatDateTime(parsedPayload.exportedAt) : 'Unknown date';
+        const sourceInst = parsedPayload.institution || BASE_PATH;
+        if (metaEl) {
+            metaEl.textContent = `File: ${escapeHtml(file.name)} • Snapshot Date: ${formattedDate} • Source: ${sourceInst}`;
+        }
+
+        if (listEl) {
+            listEl.innerHTML = Object.values(BACKUP_CATEGORIES_CONFIG).map((cat) => {
+                const hasData = cat.hasData(parsedPayload);
+                const count = cat.getItemCount(parsedPayload);
+                const isPresent = hasData || count > 0;
+                return `
+                    <div class="flex items-center justify-between p-2 rounded-lg border ${isPresent ? 'border-emerald-200 bg-emerald-50/50 text-emerald-950' : 'border-slate-100 bg-slate-50 text-slate-400 opacity-60'}">
+                        <div class="flex items-center gap-2 truncate">
+                            <i class="fas ${cat.icon} text-xs ${isPresent ? 'text-emerald-600' : 'text-slate-400'}"></i>
+                            <span class="text-xs font-bold truncate">${escapeHtml(cat.label)}</span>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${isPresent ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-400 border-slate-200'} shrink-0">
+                            ${isPresent ? (count > 0 ? `${count} records` : 'Available') : 'Not in file'}
+                        </span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        document.querySelectorAll('.backup-category-cb').forEach((cb) => {
+            const catKey = cb.dataset.category;
+            const config = BACKUP_CATEGORIES_CONFIG[catKey];
+            if (config) {
+                cb.checked = config.hasData(parsedPayload);
+            }
+        });
+        updateBackupSelectionUI();
+
     } catch (error) {
         console.error('Backup JSON parse error:', error);
         pendingRestorePayload = null;
@@ -10802,38 +10917,28 @@ document.getElementById('restore-file-input')?.addEventListener('change', async 
     }
 });
 
-document.getElementById('restore-select-all')?.addEventListener('change', (e) => {
-    const isChecked = e.target.checked;
-    document.querySelectorAll('.restore-category-cb:not(:disabled)').forEach((cb) => {
-        cb.checked = isChecked;
-    });
-    updateRestoreSelectionUI();
-});
-
-document.addEventListener('change', (e) => {
-    if (e.target && e.target.classList.contains('restore-category-cb')) {
-        updateRestoreSelectionUI();
-    }
-});
-
-document.getElementById('restore-cancel-btn')?.addEventListener('click', () => {
+const dismissRestorePreview = () => {
     pendingRestorePayload = null;
     document.getElementById('restore-preview')?.classList.add('hidden');
     const fileInput = document.getElementById('restore-file-input');
     if (fileInput) fileInput.value = '';
-});
+};
+
+document.getElementById('restore-cancel-btn')?.addEventListener('click', dismissRestorePreview);
+document.getElementById('restore-cancel-btn-2')?.addEventListener('click', dismissRestorePreview);
 
 document.getElementById('run-selective-restore-btn')?.addEventListener('click', async () => {
     if (!requirePermission('backup.restore')) return;
     if (!pendingRestorePayload) return alert('Select a backup file first.');
-    const selected = getSelectedRestoreCategories();
-    if (!selected.length) return alert('Please select at least one category to restore.');
+    const selected = getSelectedBackupCategories().filter(catKey => BACKUP_CATEGORIES_CONFIG[catKey]?.hasData(pendingRestorePayload));
+    if (!selected.length) return alert('None of the selected categories exist in this backup file.');
 
     const selectedLabels = selected.map(k => BACKUP_CATEGORIES_CONFIG[k]?.label || k).join('\n• ');
-    const confirmed = confirm(`Are you sure you want to restore the selected categories?\n\n• ${selectedLabels}\n\nDocuments in these categories will be replaced with the snapshot data. Unselected categories will NOT be affected.`);
+    const confirmed = confirm(`Are you sure you want to restore the selected categories?\n\n• ${selectedLabels}\n\nExisting records in these categories will be replaced with snapshot data. Unselected categories will NOT be affected.`);
     if (!confirmed) return;
 
     await executeCategorizedRestore(pendingRestorePayload, selected);
+    renderBackupCategoryCounts();
 });
 
 document.getElementById('run-restore-btn')?.addEventListener('click', async () => {
@@ -10846,6 +10951,7 @@ document.getElementById('run-restore-btn')?.addEventListener('click', async () =
     if (!confirmed) return;
 
     await executeCategorizedRestore(pendingRestorePayload, availableCategories);
+    renderBackupCategoryCounts();
 });
 document.getElementById('audit-filter-action')?.addEventListener('change', renderAuditLogList);
 document.getElementById('audit-search-input')?.addEventListener('input', renderAuditLogList);

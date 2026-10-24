@@ -1,38 +1,49 @@
-# Implementation Plan: Student Photo High-Quality PNG Download
+# Implementation Plan: Permanent Categorized Grid for Backup & Recovery [COMPLETED]
 
-Manage Students പേജിലെ വിദ്യാർത്ഥികളുടെ ഫോട്ടോയുടെ താഴെ ഇടതുവശത്തായി (bottom-left) ഡൗൺലോഡ് ബട്ടൺ നൽകുകയും, അത് ക്ലിക്ക് ചെയ്യുമ്പോൾ വിദ്യാർത്ഥിയുടെ പേര് ഫയൽ നാമമായി നൽകി ഏറ്റവും ഉയർന്ന ക്വാളിറ്റിയിൽ PNG ഫോർമാറ്റിൽ ഫോട്ടോ ഡൗൺലോഡ് ചെയ്യാനുമുള്ള സംവിധാനം വിജയകരമായി നടപ്പിലാക്കി.
-
----
-
-### User Requirement Summary (ഉപയോക്തൃ ആവശ്യങ്ങൾ)
-1. **സ്ഥലം**: Manage Students (`#manage-students-page`) പേജിലെ വിദ്യാർത്ഥികളുടെ ലിസ്റ്റിൽ ഫോട്ടോകൾ കാണിക്കുന്ന ഭാഗത്ത്.
-2. **ഡൗൺലോഡ് ബട്ടന്റെ സ്ഥാനം**: ഫോട്ടോയുടെ താഴ്ഭാഗത്ത് ഇടതുവശത്തായിട്ട് (`bottom-left`) കൃത്യമായി വരണം.
-3. **ഫയൽ ഫോർമാറ്റ്**: നിർബന്ധമായും **PNG** (`.png`) ഫോർമാറ്റിൽ ആയിരിക്കണം.
-4. **ഫയൽ നാമം**: വിദ്യാർത്ഥിയുടെ പേര് കൊണ്ടായിരിക്കണം ഫയൽ ഡൗൺലോഡ് ചെയ്യപ്പെടേണ്ടത് (ഉദാ: `Muhammed_Ali.png`).
-5. **ക്വാളിറ്റി**: ഒറിജിനൽ ചിത്രത്തിന്റെ ഏറ്റവും കൂടിയ റെസല്യൂഷൻ (Maximum Natural Resolution) നിലനിർത്തിക്കൊണ്ടുള്ള ഹൈ-ക്വാളിറ്റി ഇമേജ് ആയിരിക്കണം.
+Security & Settings പേജിലെ **Backup & Recovery** സെക്ഷൻ, **Institutional Data Purge & Reset** സെക്ഷന് സമാനമായി, പേജിൽ നേരിട്ട് ദൃശ്യമാകുന്ന രീതിയിൽ (Permanently Visible Categorized Grid) കാറ്റഗറി കാർഡുകളും ചെക്ക്ബോക്സുകളും നൽകി വിജയകരമായി പൂർത്തിയാക്കി.
 
 ---
 
-### Implemented Architecture & Details
+### പൂർത്തിയാക്കിയ ഘട്ടങ്ങൾ (Completed Implementation)
 
-#### 1. UI Positioning in `scripts/pages/admin-page.js` & `admin.html`
-- **Manage Students Table**:
-  - ഫോട്ടോ സെല്ലിൽ ഒരു `relative inline-block` കണ്ടെയ്‌നർ നൽകി.
-  - ഫോട്ടോ ഉള്ള വിദ്യാർത്ഥികൾക്ക് ഫോട്ടോ സർക്കിളിന്റെ കൃത്യമായി താഴെ ഇടതുവശത്ത് (`absolute -bottom-1 -left-1`) വൃത്താകൃതിയിലുള്ള നീല ഡൗൺലോഡ് ബട്ടൺ (`download-student-photo-btn`) ചേർത്തു.
-  - വൈറ്റ് ബോർഡറും ഷാഡോയും ഉൾപ്പെടുത്തി ഭംഗിയാക്കി.
-- **Student Full Details Modal**:
-  - മോഡൽ ഹെഡറിലെ ഫോട്ടോയുടെ താഴെ ഇടതുവശത്തും ഡൗൺലോഡ് ബട്ടൺ (`modal-download-stu-photo-btn`) നൽകി.
+#### 1. Permanent Classified Category Grid in `admin.html`
+- **Institutional Backup & Recovery Center** പൂർണ്ണമായും പേജിൽ സ്ഥിരമായി കാണാവുന്ന രൂപത്തിലേക്ക് മാറ്റി:
+  - **Header & Live Selection Badge**: `#backup-selected-count-badge` (തിരഞ്ഞെടുത്ത കാറ്റഗറികളുടെ എണ്ണം തത്സമയം കാണിക്കുന്നു).
+  - **Master Toggle Bar**:
+    - `[x] Select All Categories (Full System Backup & Recovery)` (`#backup-select-all`)
+  - **9 Granular Category Cards (നേരിട്ട് കാണാവുന്നത്)**:
+    1. **Students & Admissions** (`students`) - Live student count (`#count-backup-students`)
+    2. **Fee Records & Transactions** (`payments`) - Live payment count (`#count-backup-payments`)
+    3. **Exam Results & Schemas** (`examResults`) - Live result & schema count (`#count-backup-results`)
+    4. **Staff Directory & Accounts** (`staff`) - Live staff count (`#count-backup-staff`)
+    5. **Student Groups & Batches** (`studentGroups`) - Live groups count (`#count-backup-groups`)
+    6. **Website & Public Directory** (`website`) - Notices, gallery & directory count (`#count-backup-website`)
+    7. **Academic Years & Sessions** (`academicYears`) - Academic year count (`#count-backup-years`)
+    8. **System Settings & Configuration** (`config`) - Fee items & config count (`#count-backup-config`)
+    9. **System Audit Trail Logs** (`auditLogs`) - System audit log count (`#count-backup-audit`)
+  - **Action Buttons**:
+    - **"Export Backup (Selected / Full)"** (`#backup-export-btn`): തിരഞ്ഞെടുത്ത കാറ്റഗറികൾ മാത്രം (അല്ലെങ്കിൽ പൂർണ്ണമായും) JSON ഫയലായി ഡൗൺലോഡ് ചെയ്യുന്നു.
+    - **"Upload & Restore Backup File"** (`#restore-file-input`): ബാക്കപ്പ് ഫയൽ അപ്‌ലോഡ് ചെയ്യുമ്പോൾ ഫയലിലുള്ള കാറ്റഗറികൾ വിശകലനം ചെയ്ത് പ്രിവ്യൂ നൽകുന്നു.
+  - **Snapshot Restore Preview Panel (`#restore-preview`)**:
+    - അപ്‌ലോഡ് ചെയ്ത ഫയലിന്റെ തീയതി, പതിപ്പ്, ലഭ്യമായ കാറ്റഗറികൾ എന്നിവയുടെ വിവരണം.
+    - **"Restore Selected Categories Only"** ബട്ടൺ.
+    - **"Restore All Categories (Full Snapshot)"** ബട്ടൺ.
+    - **"Cancel"** ബട്ടൺ.
+    - പ്രോഗ്രസ്സ് ബാറും തത്സമയ സ്റ്റാറ്റസ് മെസ്സേജുകളും.
+  - **System Audit Trail**:
+    - ബാക്കപ്പ് സെന്ററിന് താഴെ സ്വതന്ത്രമായ ഫുൾ-വിഡ്ത്ത് കാർഡായി ഭംഗിയായി നിലനിർത്തി.
 
-#### 2. High-Quality PNG Conversion Engine (`downloadStudentPhotoAsPng`)
-- ഇമേജ് ഒബ്‌ജക്റ്റിലേക്ക് ഫോട്ടോ ലോഡ് ചെയ്യുന്നു.
-- യഥാർത്ഥ നാച്ചുറൽ റെസല്യൂഷൻ (`img.naturalWidth`, `img.naturalHeight`) കൃത്യമായി കണ്ടെത്തി ഓഫ്-സ്‌ക്രീൻ HTML5 Canvas നിർമ്മിക്കുന്നു.
-- 1:1 സ്കെയിലിൽ ഫോട്ടോ കാൻവാസിലേക്ക് വരച്ച്, കംപ്രഷൻ നഷ്ടമില്ലാതെ `image/png` ആയി Blob ആക്കി മാറ്റുന്നു.
-- ഫയൽ നാമത്തിൽ നിന്നും അസാധുവായ ചിഹ്നങ്ങൾ ഒഴിവാക്കി `<student_name>.png` എന്ന പേരിൽ നേരിട്ട് ഡൗൺലോഡ് ചെയ്യുന്നു.
-- മെമ്മറി ലീക്ക് ഒഴിവാക്കാൻ Blob URL സുരക്ഷിതമായി റിലീസ് ചെയ്യുന്നു.
+#### 2. JavaScript Logic in `scripts/pages/admin-page.js`
+- `renderBackupCategoryCounts()`: പേജ് ലോഡ് ചെയ്യുമ്പോഴും സെക്യൂരിറ്റി സെറ്റിംഗ്സ് തുറക്കുമ്പോഴും 9 കാറ്റഗറികളിലെയും നിലവിലെ ഡാറ്റാബേസ് കൗണ്ടുകൾ ലൈവായി കാർഡുകളിൽ കാണിക്കുന്നു.
+- `getSelectedBackupCategories()` & `updateBackupSelectionUI()`: ഉപയോക്താവ് ചെക്ക്ബോക്സുകൾ മാറ്റുമ്പോൾ ബാഡ്ജ് തത്സമയം അപ്‌ഡേറ്റ് ചെയ്യുകയും, മാസ്റ്റർ ചെക്ക്ബോക്സ് ഇൻഡിറ്റർമിനേറ്റ്/സെലക്ട് സ്റ്റാറ്റസ് പാലിക്കുകയും ചെയ്യുന്നു.
+- `buildBackupPayload(targetCategories)`: ഉപയോക്താവ് തിരഞ്ഞെടുത്ത കാറ്റഗറികൾ മാത്രം ഉൾപ്പെടുത്തിക്കൊണ്ട് ക്ലീൻ JSON ബാക്കപ്പ് ജനറേറ്റ് ചെയ്യുന്നു.
+- ഫയൽ ഇംപോർട്ട് ഹാൻഡ്‌ലർ: അപ്‌ലോഡ് ചെയ്യുന്ന ഫയലിലെ കാറ്റഗറികൾ പരിശോധിച്ച്, നിലവിൽ ചെക്ക് ചെയ്തിട്ടുള്ള കാറ്റഗറികൾ മാത്രം റീസ്റ്റോർ ചെയ്യാനും അല്ലെങ്കിൽ മുഴുവൻ റീസ്റ്റോർ ചെയ്യാനും ഉപയോക്താവിന് കൃത്യമായ നിയന്ത്രണം നൽകുന്നു.
+- സൂപ്പർ അഡ്മിൻ ലോഗിൻ ക്രഡൻഷ്യലുകൾ പരിപൂർണ്ണമായി സംരക്ഷിക്കപ്പെടുന്നു.
+- `activateAdminPage('security-settings')`: സെക്യൂരിറ്റി ടാബിലേക്ക് എത്തുമ്പോൾ തന്നെ കൗണ്ടുകളും സെലക്ഷൻ യുഐയും ഓട്ടോമാറ്റിക്കായി റിഫ്രഷ് ചെയ്യുന്നു.
 
 ---
 
-### Verification
-- `compile_applet`: ബിൽഡ് പരിശോധന വിജയകരമായി പൂർത്തിയായി (Build succeeded).
-- `npx tsc --noEmit`: ടൈപ്പ്/സിന്റാക്സ് പിഴവുകളില്ലെന്ന് ഉറപ്പുവരുത്തി.
-- `lint_applet`: വിജയിച്ചു.
+### പരിശോധനാ ഫലങ്ങൾ (Verification Results)
+- `compile_applet`: Build succeeded (വിജയകരമായി പൂർത്തിയായി).
+- `lint_applet` (`tsc --noEmit`): യാതൊരുവിധ സിന്റാക്സ്/ടൈപ്പ് എററുകളുമില്ലാതെ 0 errors ആയി പാസ്സായി.
+- UI ടെക്സ്റ്റുകൾ: എല്ലാ ബട്ടണുകളും, കാറ്റഗറി ടൈറ്റിലുകളും, ബാഡ്ജുകളും 100% ഇംഗ്ലീഷ് ഭാഷയിൽ മാത്രമായി ക്രമീകരിച്ചു.
