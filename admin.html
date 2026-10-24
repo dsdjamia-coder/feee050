@@ -2136,6 +2136,146 @@
         </div>
     </div>
 
+    <!-- Full Student Profile Details Modal -->
+    <div id="student-full-details-modal" class="fixed inset-0 popup-overlay items-center justify-center hidden px-4 z-50">
+        <div class="card rounded-2xl shadow-2xl p-0 w-full max-w-3xl mx-auto bg-white max-h-[92vh] overflow-hidden flex flex-col relative border border-slate-200">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 flex items-start justify-between gap-4">
+                <div class="flex items-center gap-4 min-w-0">
+                    <div class="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 border-white/30 overflow-hidden bg-white/10 flex items-center justify-center shrink-0 shadow-md">
+                        <img id="view-stu-photo" class="w-full h-full object-cover hidden" alt="Student Photo">
+                        <i id="view-stu-photo-placeholder" class="fas fa-user text-3xl sm:text-4xl text-white/60"></i>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2 flex-wrap mb-1">
+                            <span id="view-stu-class-badge" class="px-2.5 py-0.5 rounded-md bg-blue-500/30 text-blue-200 border border-blue-400/40 text-xs font-bold">Class --</span>
+                            <span id="view-stu-status-badge" class="px-2.5 py-0.5 rounded-md bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 text-xs font-bold">Active</span>
+                            <span id="view-stu-gender-badge" class="px-2.5 py-0.5 rounded-md bg-white/10 text-white/90 border border-white/20 text-xs font-semibold">--</span>
+                        </div>
+                        <h3 id="view-stu-name" class="text-lg sm:text-xl font-black text-white truncate leading-tight">Student Name</h3>
+                        <p class="text-xs text-blue-200/80 mt-1 flex items-center gap-2 flex-wrap font-mono">
+                            <span>Adm: <b id="view-stu-adm" class="text-white">--</b></span>
+                            <span>•</span>
+                            <span>ID/UID: <b id="view-stu-uid" class="text-white">--</b></span>
+                        </p>
+                    </div>
+                </div>
+                <button type="button" id="student-full-details-close-btn" class="text-white/70 hover:text-white p-2 rounded-xl hover:bg-white/10 transition shrink-0" title="Close"><i class="fas fa-times text-lg"></i></button>
+            </div>
+
+            <!-- Modal Scrollable Content -->
+            <div class="p-5 overflow-y-auto space-y-4 max-h-[calc(92vh-160px)] bg-slate-50/50">
+                <!-- Academic & Personal Grid -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                    <h4 class="text-xs font-extrabold uppercase tracking-wider text-blue-900 border-b border-slate-100 pb-2 mb-3 flex items-center gap-1.5">
+                        <i class="fas fa-graduation-cap text-blue-600"></i> Academic & Personal Information
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 text-xs">
+                        <div>
+                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Admission Number</span>
+                            <span id="view-stu-adm-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                        </div>
+                        <div>
+                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Class</span>
+                            <span id="view-stu-class-val" class="font-bold text-blue-700 text-sm mt-0.5 block">--</span>
+                        </div>
+                        <div>
+                            <span class="block text-[11px] font-bold text-slate-500 uppercase">ID / UID</span>
+                            <span id="view-stu-uid-val" class="font-bold text-slate-800 text-sm mt-0.5 block font-mono">--</span>
+                        </div>
+                        <div>
+                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Gender</span>
+                            <span id="view-stu-gender-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                        </div>
+                        <div>
+                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Date of Birth</span>
+                            <span id="view-stu-dob-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                        </div>
+                        <div>
+                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Date of Admission</span>
+                            <span id="view-stu-adm-date-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                        </div>
+                        <div>
+                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Student Status</span>
+                            <span id="view-stu-status-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Aadhaar Number</span>
+                            <span id="view-stu-adhaar-val" class="font-bold text-slate-800 text-sm mt-0.5 block font-mono">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Parents & Contact Information -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                    <h4 class="text-xs font-extrabold uppercase tracking-wider text-blue-900 border-b border-slate-100 pb-2 mb-3 flex items-center gap-1.5">
+                        <i class="fas fa-users text-indigo-600"></i> Parents & Contact Information
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        <!-- Father Info -->
+                        <div class="bg-sky-50/60 p-3 rounded-lg border border-sky-100">
+                            <span class="text-[11px] font-extrabold text-sky-900 uppercase flex items-center gap-1 mb-1.5">
+                                <i class="fas fa-male text-sky-600"></i> Father's Details
+                            </span>
+                            <div class="space-y-1">
+                                <div class="text-slate-500 text-[11px]">Name: <b id="view-stu-father-name" class="text-slate-800 text-xs">--</b></div>
+                                <div class="text-slate-500 text-[11px]">Phone: <b id="view-stu-father-phone" class="text-slate-800 text-xs font-mono">--</b></div>
+                            </div>
+                        </div>
+
+                        <!-- Mother Info -->
+                        <div class="bg-purple-50/60 p-3 rounded-lg border border-purple-100">
+                            <span class="text-[11px] font-extrabold text-purple-900 uppercase flex items-center gap-1 mb-1.5">
+                                <i class="fas fa-female text-purple-600"></i> Mother's Details
+                            </span>
+                            <div class="space-y-1">
+                                <div class="text-slate-500 text-[11px]">Name: <b id="view-stu-mother-name" class="text-slate-800 text-xs">--</b></div>
+                                <div class="text-slate-500 text-[11px]">Phone: <b id="view-stu-mother-phone" class="text-slate-800 text-xs font-mono">--</b></div>
+                            </div>
+                        </div>
+
+                        <!-- Permanent Address -->
+                        <div class="sm:col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                            <span class="block text-[11px] font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                                <i class="fas fa-home text-slate-600"></i> Permanent Address
+                            </span>
+                            <p id="view-stu-address-val" class="font-medium text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">--</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fee & Group Linking Details -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                    <h4 class="text-xs font-extrabold uppercase tracking-wider text-blue-900 border-b border-slate-100 pb-2 mb-3 flex items-center gap-1.5">
+                        <i class="fas fa-hand-holding-usd text-emerald-600"></i> Fee Concession & Group Status
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+                        <div class="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-lg flex items-center justify-between">
+                            <div>
+                                <span class="text-[11px] font-bold text-emerald-900 uppercase block">Special Monthly Fee (Concession)</span>
+                                <span id="view-stu-concession-val" class="text-xs font-bold text-emerald-700">None (Standard Fee Applies)</span>
+                            </div>
+                            <span id="view-stu-concession-amt" class="font-extrabold text-sm text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200 shadow-2xs hidden">--</span>
+                        </div>
+                        <div class="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg flex items-center justify-between">
+                            <div>
+                                <span class="text-[11px] font-bold text-blue-900 uppercase block">Linked Student Group</span>
+                                <span id="view-stu-group-val" class="text-xs font-bold text-blue-700">Not in a group</span>
+                            </div>
+                            <span id="view-stu-group-amt" class="font-extrabold text-sm text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs hidden">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="bg-white p-4 border-t border-slate-200 flex items-center justify-between gap-3">
+                <span class="text-[11px] text-slate-500 italic"><i class="fas fa-info-circle mr-1 text-blue-500"></i>Student profile records loaded from database.</span>
+                <button type="button" id="student-full-details-close-bottom" class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Edit Student Modal -->
     <div id="edit-student-popup" class="fixed inset-0 popup-overlay items-center justify-center hidden px-4 z-50">
         <div class="card rounded-2xl shadow-2xl p-6 w-full max-w-2xl mx-auto bg-white max-h-[90vh] overflow-y-auto relative">

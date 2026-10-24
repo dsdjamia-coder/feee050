@@ -6473,7 +6473,10 @@ const renderStudentGroups = () => {
                 <tr class="hover:bg-blue-50/40 transition-colors">
                     <td class="py-2.5 px-3 text-center text-gray-400 font-semibold">${mIdx + 1}</td>
                     <td class="py-2.5 px-3">
-                        <span class="font-bold text-gray-800">${studentName}</span>
+                        <button type="button" class="font-bold text-slate-800 text-xs hover:text-blue-600 hover:underline cursor-pointer view-student-details-btn text-left inline-flex items-center gap-1.5" data-student-id="${student.id}" title="Click to view full student details">
+                            <span>${studentName}</span>
+                            <i class="fas fa-external-link-alt text-[9px] text-slate-400"></i>
+                        </button>
                     </td>
                     <td class="py-2.5 px-3 text-center">
                         <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold text-[11px] border border-blue-200">
@@ -8058,7 +8061,10 @@ const renderActiveConcessionsList = () => {
             <tr class="hover:bg-emerald-50/40 transition-colors">
                 <td class="py-2.5 px-3 text-center text-slate-400 font-semibold text-xs">${idx + 1}</td>
                 <td class="py-2.5 px-3">
-                    <div class="font-bold text-slate-800 text-xs hover:text-emerald-950">${studentName}</div>
+                    <button type="button" class="font-bold text-slate-800 text-xs hover:text-emerald-700 hover:underline cursor-pointer view-student-details-btn text-left inline-flex items-center gap-1.5" data-student-id="${s.id}" title="Click to view full student details">
+                        <span>${studentName}</span>
+                        <i class="fas fa-external-link-alt text-[9px] text-slate-400"></i>
+                    </button>
                     ${father ? `<div class="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5"><i class="fas fa-user-shield text-[9px]"></i> ${father}</div>` : ''}
                 </td>
                 <td class="py-2.5 px-3 text-center">
@@ -8126,7 +8132,10 @@ const renderConcessionsList = () => {
         return `
             <div class="p-2.5 bg-white border border-slate-200 rounded-lg shadow-2xs hover:border-blue-200 transition flex items-center justify-between gap-2">
                 <div class="min-w-0 flex-1">
-                    <div class="font-bold text-xs text-slate-800 break-words leading-tight">${escapeHtml(s.name || '-')}</div>
+                    <button type="button" class="font-bold text-xs text-slate-800 break-words leading-tight hover:text-blue-600 hover:underline cursor-pointer view-student-details-btn text-left inline-flex items-center gap-1.5" data-student-id="${s.id}" title="Click to view full student details">
+                        <span>${escapeHtml(s.name || '-')}</span>
+                        <i class="fas fa-external-link-alt text-[9px] text-slate-400"></i>
+                    </button>
                     <div class="flex items-center gap-1.5 text-[11px] text-slate-500 mt-1">
                         <span class="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">Class ${escapeHtml(s.class || '--')}</span>
                         <span>•</span>
@@ -8205,6 +8214,132 @@ window.deleteConcession = async (studentId) => {
     await updateDoc(doc(db, `${BASE_PATH}/students`, studentId), { concessionFee: null, concessionUpdatedAt: Date.now() });
     await logAuditEvent({ category: 'fee', action: 'concession.remove', entityType: 'student', entityId: studentId, message: 'Concession removed.' });
 };
+
+// --- Student Full Profile Details Modal Controller ---
+const openStudentDetailsModal = (studentId) => {
+    const student = students.find((st) => st.id === studentId);
+    if (!student) return;
+
+    const modal = document.getElementById('student-full-details-modal');
+    if (!modal) return;
+
+    // Photo
+    const photoImg = document.getElementById('view-stu-photo');
+    const photoPlaceholder = document.getElementById('view-stu-photo-placeholder');
+    const photoUrl = student.photo || student.profilePhoto || student.photoUrl || student.profile?.photo || '';
+    if (photoImg && photoPlaceholder) {
+        if (photoUrl) {
+            photoImg.src = photoUrl;
+            photoImg.classList.remove('hidden');
+            photoPlaceholder.classList.add('hidden');
+        } else {
+            photoImg.src = '';
+            photoImg.classList.add('hidden');
+            photoPlaceholder.classList.remove('hidden');
+        }
+    }
+
+    const setText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val || '--';
+    };
+
+    setText('view-stu-name', student.name || 'Unnamed Student');
+    setText('view-stu-adm', student.adm || '--');
+    setText('view-stu-uid', student.uid || student.id || '--');
+
+    const classBadge = document.getElementById('view-stu-class-badge');
+    if (classBadge) classBadge.textContent = student.class ? `Class ${student.class}` : 'No Class';
+
+    const statusBadge = document.getElementById('view-stu-status-badge');
+    const statusVal = student.status || 'Active';
+    if (statusBadge) {
+        statusBadge.textContent = statusVal;
+        statusBadge.className = statusVal === 'Active'
+            ? 'px-2.5 py-0.5 rounded-md bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 text-xs font-bold'
+            : (statusVal === 'Alumni' ? 'px-2.5 py-0.5 rounded-md bg-amber-500/30 text-amber-200 border border-amber-400/40 text-xs font-bold' : 'px-2.5 py-0.5 rounded-md bg-rose-500/30 text-rose-200 border border-rose-400/40 text-xs font-bold');
+    }
+
+    const genderBadge = document.getElementById('view-stu-gender-badge');
+    if (genderBadge) genderBadge.textContent = student.gender || 'Not Specified';
+
+    // Academic & Personal
+    setText('view-stu-adm-val', student.adm || '--');
+    setText('view-stu-class-val', student.class ? `Class ${student.class}` : '--');
+    setText('view-stu-uid-val', student.uid || student.id || '--');
+    setText('view-stu-gender-val', student.gender || '--');
+    setText('view-stu-dob-val', student.dob || '--');
+    setText('view-stu-adm-date-val', student.admDate || '--');
+    setText('view-stu-status-val', student.status || 'Active');
+    setText('view-stu-adhaar-val', student.adhaar || '--');
+
+    // Parents & Contact
+    const fatherName = student.father || student.fatherName || student.profile?.father || '';
+    const fatherPhone = student.mobile || student.fatherMobile || student.parentPhone || student.phone || student.profile?.fatherMobile || '';
+    const motherName = student.mother || student.motherName || student.profile?.mother || '';
+    const motherPhone = student.motherMobile || student.profile?.motherMobile || '';
+    const address = student.address || student.permanentAddress || student.profile?.address || '';
+
+    setText('view-stu-father-name', fatherName || 'Not recorded');
+    setText('view-stu-father-phone', fatherPhone || 'Not recorded');
+    setText('view-stu-mother-name', motherName || 'Not recorded');
+    setText('view-stu-mother-phone', motherPhone || 'Not recorded');
+    setText('view-stu-address-val', address || 'No address provided');
+
+    // Concession Info
+    const concVal = document.getElementById('view-stu-concession-val');
+    const concAmt = document.getElementById('view-stu-concession-amt');
+    if (student.concessionFee !== undefined && student.concessionFee !== null && student.concessionFee !== '') {
+        if (concVal) concVal.textContent = 'Special Fee Applied';
+        if (concAmt) {
+            concAmt.textContent = `₹${student.concessionFee}/month`;
+            concAmt.classList.remove('hidden');
+        }
+    } else {
+        if (concVal) concVal.textContent = 'None (Standard Fee Applies)';
+        if (concAmt) concAmt.classList.add('hidden');
+    }
+
+    // Group Info
+    const groupVal = document.getElementById('view-stu-group-val');
+    const groupAmt = document.getElementById('view-stu-group-amt');
+    const linkedGroup = (studentGroups || []).find((g) => Array.isArray(g.memberIds) && g.memberIds.includes(student.id));
+    if (linkedGroup) {
+        if (groupVal) groupVal.textContent = `Linked to Group (${(linkedGroup.memberIds || []).length} members)`;
+        if (groupAmt) {
+            groupAmt.textContent = `₹${linkedGroup.fee || 0}/month`;
+            groupAmt.classList.remove('hidden');
+        }
+    } else {
+        if (groupVal) groupVal.textContent = 'Not in a student group';
+        if (groupAmt) groupAmt.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+const closeStudentDetailsModal = () => {
+    const modal = document.getElementById('student-full-details-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+};
+
+document.getElementById('student-full-details-close-btn')?.addEventListener('click', closeStudentDetailsModal);
+document.getElementById('student-full-details-close-bottom')?.addEventListener('click', closeStudentDetailsModal);
+document.getElementById('student-full-details-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'student-full-details-modal') closeStudentDetailsModal();
+});
+
+document.addEventListener('click', (e) => {
+    const viewBtn = e.target.closest('.view-student-details-btn');
+    if (viewBtn && viewBtn.dataset.studentId) {
+        e.preventDefault();
+        openStudentDetailsModal(viewBtn.dataset.studentId);
+    }
+});
 
 // --- 7. FEE SETTINGS (Auto 12 Months Generation added in init) ---
 document.getElementById('adv-fee-scope').addEventListener('change', (e) => {

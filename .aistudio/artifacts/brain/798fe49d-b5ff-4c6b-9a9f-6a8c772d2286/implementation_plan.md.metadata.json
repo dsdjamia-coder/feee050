@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan to remove the inline Father/Mother badges in each row, show direct parent name & phone with an upright phone icon, and keep Father/Mother in the table header.",
-  "updatedAt":  "2026-10-24T05:33:36.983146074Z",
+  "summary":  "Implementation plan to make student names clickable in Student Groups and Fee Concessions to open a full student details modal displaying all 15 Add-Student fields.",
+  "updatedAt":  "2026-10-24T05:41:20.073580833Z",
   "requestFeedback":  true,
   "userFacing":  true
 }
