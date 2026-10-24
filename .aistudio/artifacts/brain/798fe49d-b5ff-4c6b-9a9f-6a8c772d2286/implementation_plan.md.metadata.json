@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan to update student group member table parent column: default to Father's name & phone number, with fallback to Mother's name & phone number if father info is absent.",
-  "updatedAt":  "2026-10-24T05:26:41.255909703Z",
+  "summary":  "Implementation plan to remove the inline Father/Mother badges in each row, show direct parent name & phone with an upright phone icon, and keep Father/Mother in the table header.",
+  "updatedAt":  "2026-10-24T05:33:36.983146074Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -6458,16 +6458,13 @@ const renderStudentGroups = () => {
             const motherName = (student.mother || student.motherName || student.profile?.mother || '').trim();
             const motherPhone = (student.motherMobile || student.profile?.motherMobile || '').trim();
 
-            let parentRole = '';
             let parentDisplayName = '';
             let parentDisplayPhone = '';
 
             if (fatherName || fatherPhone) {
-                parentRole = 'Father';
                 parentDisplayName = fatherName;
                 parentDisplayPhone = fatherPhone;
             } else if (motherName || motherPhone) {
-                parentRole = 'Mother';
                 parentDisplayName = motherName;
                 parentDisplayPhone = motherPhone;
             }
@@ -6490,12 +6487,9 @@ const renderStudentGroups = () => {
                     </td>
                     <td class="py-2.5 px-3 text-xs">
                         ${parentDisplayName || parentDisplayPhone ? `
-                            <div class="flex items-center gap-1.5 flex-wrap">
-                                <span class="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${parentRole === 'Father' ? 'bg-sky-50 text-sky-800 border border-sky-200' : 'bg-purple-50 text-purple-800 border border-purple-200'}">
-                                    <i class="fas ${parentRole === 'Father' ? 'fa-male' : 'fa-female'} text-[9px]"></i> ${parentRole}
-                                </span>
+                            <div class="flex items-center gap-2 flex-wrap">
                                 <span class="font-bold text-gray-800">${escapeHtml(parentDisplayName || '-')}</span>
-                                ${parentDisplayPhone ? `<span class="text-gray-500 font-mono text-[11px]"><i class="fas fa-phone-alt text-[9px] text-gray-400 mr-0.5"></i>${escapeHtml(parentDisplayPhone)}</span>` : ''}
+                                ${parentDisplayPhone ? `<span class="text-gray-500 font-mono text-[11px] inline-flex items-center gap-1"><i class="fas fa-phone text-[10px] text-gray-400"></i>${escapeHtml(parentDisplayPhone)}</span>` : ''}
                             </div>
                         ` : `<span class="text-gray-400 italic">--</span>`}
                     </td>
